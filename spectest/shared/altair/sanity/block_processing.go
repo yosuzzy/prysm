@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/bazelbuild/rules_go/go/tools/bazel"
+	"github.com/d4l3k/messagediff"
 	"github.com/golang/snappy"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/helpers"
 	core "github.com/prysmaticlabs/prysm/beacon-chain/core/state"
@@ -65,14 +66,13 @@ func RunBlockProcessingTest(t *testing.T, config, folderPath string) {
 				require.NoError(t, block.UnmarshalSSZ(blockSSZ), "Failed to unmarshal")
 				wsb, err := wrapper.WrappedAltairSignedBeaconBlock(block)
 				require.NoError(t, err)
-				fmt.Println("Processing ", beaconState.Slot(), wsb.Block().Slot())
-				fmt.Println(filename)
 				processedState, transitionError = core.ExecuteStateTransition(context.Background(), beaconState, wsb)
 				if transitionError != nil {
 					break
 				}
 				beaconState, ok = processedState.(*stateAltair.BeaconState)
 				require.Equal(t, true, ok)
+				fmt.Println("processed ", beaconState.Slot(), wsb.Block().Slot())
 			}
 
 			// If the post.ssz is not present, it means the test should fail on our end.
@@ -99,6 +99,8 @@ func RunBlockProcessingTest(t *testing.T, config, folderPath string) {
 				pbState, err := stateAltair.ProtobufBeaconState(beaconState.InnerStateUnsafe())
 				require.NoError(t, err)
 				if !proto.Equal(pbState, postBeaconState) {
+					diff, _ := messagediff.PrettyDiff(beaconState.InnerStateUnsafe(), postBeaconState)
+					t.Log(diff)
 					t.Fatal("Post state does not match expected")
 				}
 			} else {
