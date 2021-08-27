@@ -20,7 +20,6 @@ import (
 	"github.com/prysmaticlabs/prysm/shared/testutil/require"
 	"github.com/prysmaticlabs/prysm/spectest/utils"
 	"google.golang.org/protobuf/proto"
-	"gopkg.in/d4l3k/messagediff.v1"
 )
 
 func init() {
@@ -28,12 +27,15 @@ func init() {
 }
 
 // RunBlockProcessingTest executes "sanity/blocks" tests.
-func RunBlockProcessingTest(t *testing.T, config string) {
+func RunBlockProcessingTest(t *testing.T, config, folderPath string) {
 	require.NoError(t, utils.SetConfig(t, config))
 
-	testFolders, testsFolderPath := utils.TestFolders(t, config, "altair", "sanity/blocks/pyspec_tests")
+	testFolders, testsFolderPath := utils.TestFolders(t, config, "altair", folderPath)
 	for _, folder := range testFolders {
 		t.Run(folder.Name(), func(t *testing.T) {
+			if folder.Name() != "randomized_0" {
+				t.Skip()
+			}
 			helpers.ClearCache()
 			preBeaconStateFile, err := testutil.BazelFileBytes(testsFolderPath, folder.Name(), "pre.ssz_snappy")
 			require.NoError(t, err)
@@ -63,6 +65,8 @@ func RunBlockProcessingTest(t *testing.T, config string) {
 				require.NoError(t, block.UnmarshalSSZ(blockSSZ), "Failed to unmarshal")
 				wsb, err := wrapper.WrappedAltairSignedBeaconBlock(block)
 				require.NoError(t, err)
+				fmt.Println("Processing ", beaconState.Slot(), wsb.Block().Slot())
+				fmt.Println(filename)
 				processedState, transitionError = core.ExecuteStateTransition(context.Background(), beaconState, wsb)
 				if transitionError != nil {
 					break
@@ -95,8 +99,6 @@ func RunBlockProcessingTest(t *testing.T, config string) {
 				pbState, err := stateAltair.ProtobufBeaconState(beaconState.InnerStateUnsafe())
 				require.NoError(t, err)
 				if !proto.Equal(pbState, postBeaconState) {
-					diff, _ := messagediff.PrettyDiff(beaconState.InnerStateUnsafe(), postBeaconState)
-					t.Log(diff)
 					t.Fatal("Post state does not match expected")
 				}
 			} else {
