@@ -60,7 +60,7 @@ func ExecuteStateTransition(
 
 	set, postState, err := ExecuteStateTransitionNoVerifyAnySig(ctx, state, signed)
 	if err != nil {
-		return nil, errors.Wrap(err, "could not execute state transition")
+		return postState, errors.Wrap(err, "could not execute state transition")
 	}
 	valid, err := set.Verify()
 	if err != nil {

@@ -96,10 +96,6 @@ func ProcessInactivityScores(
 			// Decrease inactivity score when validator gets target correct.
 			if v.InactivityScore > 0 {
 				score := uint64(1)
-				// Prevents underflow below 0.
-				if score > v.InactivityScore {
-					score = v.InactivityScore
-				}
 				v.InactivityScore -= score
 			}
 		} else {

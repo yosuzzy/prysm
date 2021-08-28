@@ -34,10 +34,11 @@ func RunBlockProcessingTest(t *testing.T, config, folderPath string) {
 	testFolders, testsFolderPath := utils.TestFolders(t, config, "altair", folderPath)
 	for _, folder := range testFolders {
 		t.Run(folder.Name(), func(t *testing.T) {
+			helpers.ClearCache()
 			if folder.Name() != "randomized_0" {
 				t.Skip()
 			}
-			helpers.ClearCache()
+
 			preBeaconStateFile, err := testutil.BazelFileBytes(testsFolderPath, folder.Name(), "pre.ssz_snappy")
 			require.NoError(t, err)
 			preBeaconStateSSZ, err := snappy.Decode(nil /* dst */, preBeaconStateFile)
@@ -67,12 +68,15 @@ func RunBlockProcessingTest(t *testing.T, config, folderPath string) {
 				wsb, err := wrapper.WrappedAltairSignedBeaconBlock(block)
 				require.NoError(t, err)
 				processedState, transitionError = core.ExecuteStateTransition(context.Background(), beaconState, wsb)
+				scores, err := processedState.InactivityScores()
+				require.NoError(t, err)
+				fmt.Println(processedState.Slot(), scores)
+				require.NoError(t, transitionError)
+				beaconState, ok = processedState.(*stateAltair.BeaconState)
+				require.Equal(t, true, ok)
 				if transitionError != nil {
 					break
 				}
-				beaconState, ok = processedState.(*stateAltair.BeaconState)
-				require.Equal(t, true, ok)
-				fmt.Println("processed ", beaconState.Slot(), wsb.Block().Slot())
 			}
 
 			// If the post.ssz is not present, it means the test should fail on our end.
