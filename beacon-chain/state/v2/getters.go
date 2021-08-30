@@ -919,7 +919,6 @@ func (b *BeaconState) MatchCurrentJustifiedCheckpoint(c *ethpb.Checkpoint) bool 
 	if b.state.CurrentJustifiedCheckpoint == nil {
 		return false
 	}
-
 	if c.Epoch != b.state.CurrentJustifiedCheckpoint.Epoch {
 		return false
 	}

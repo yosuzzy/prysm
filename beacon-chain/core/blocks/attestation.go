@@ -61,7 +61,6 @@ func VerifyAttestationNoVerifySignature(
 			currEpoch,
 		)
 	}
-
 	if data.Target.Epoch == currEpoch {
 		if !beaconState.MatchCurrentJustifiedCheckpoint(data.Source) {
 			return errors.New("source check point not equal to current justified checkpoint")
