@@ -20,7 +20,8 @@ require (
 	github.com/emicklei/dot v0.11.0
 	github.com/ethereum/go-ethereum v1.9.25
 	github.com/fatih/color v1.9.0 // indirect
-	github.com/ferranbt/fastssz v0.0.0-20210719200358-90640294cb9c
+	//github.com/ferranbt/fastssz v0.0.0-20210719200358-90640294cb9c
+	github.com/ferranbt/fastssz v0.0.0-20210819151756-be1bdee5a538
 	github.com/fjl/memsize v0.0.0-20190710130421-bcb5799ab5e5
 	github.com/fsnotify/fsnotify v1.4.9
 	github.com/gballet/go-libpcsclite v0.0.0-20191108122812-4678299bea08 // indirect
@@ -139,4 +140,4 @@ replace github.com/json-iterator/go => github.com/prestonvanloon/go v1.1.7-0.201
 // See https://github.com/prysmaticlabs/grpc-gateway/issues/2
 replace github.com/grpc-ecosystem/grpc-gateway/v2 => github.com/prysmaticlabs/grpc-gateway/v2 v2.3.1-0.20210702154020-550e1cd83ec1
 
-replace github.com/ferranbt/fastssz => github.com/kasey/fastssz v0.0.0-20210817214512-ff5a488a0e94
+//replace github.com/ferranbt/fastssz => github.com/kasey/fastssz v0.0.0-20210817214512-ff5a488a0e94
