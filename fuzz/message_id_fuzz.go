@@ -3,7 +3,7 @@ package fuzz
 import (
 	"github.com/gogo/protobuf/proto"
 	pubsub_pb "github.com/libp2p/go-libp2p-pubsub/pb"
-	msg2 "github.com/prysmaticlabs/prysm/beacon-chain/p2p/msg"
+	"github.com/prysmaticlabs/prysm/beacon-chain/p2p"
 	"github.com/prysmaticlabs/prysm/shared/bytesutil"
 )
 
@@ -18,8 +18,5 @@ func MessageIDFuzz(b []byte) {
 		return
 	}
 	genesisValidatorsRoot := bytesutil.PadTo([]byte{'A'}, 32)
-	res := msg2.MsgID(genesisValidatorsRoot, msg)
-	if res == "invalid" {
-		//panic(res)
-	}
+	p2p.MsgID(genesisValidatorsRoot, msg)
 }
