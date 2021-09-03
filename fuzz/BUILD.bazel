@@ -150,6 +150,37 @@ go_fuzz_test(
     ] + COMMON_DEPS,
 )
 
+go_fuzz_test(
+    name = "message_id_fuzz_test",
+    srcs = [
+        "message_id_fuzz.go",
+    ],
+    corpus = "testing",
+    corpus_path = "testing",
+    func = "FuzzMessageID",
+    importpath = IMPORT_PATH,
+    deps = [
+        "//beacon-chain/p2p/msg:go_default_library",
+        "//shared/bytesutil:go_default_library",
+        "@com_github_gogo_protobuf//proto:go_default_library",
+        "@com_github_libp2p_go_libp2p_pubsub//pb:go_default_library",
+    ],
+)
+
+go_test(
+    name = "go_default_test",
+    srcs = [
+        "message_id_fuzz.go",
+        "message_id_test.go",
+    ],
+    deps = [
+        "//beacon-chain/p2p/msg:go_default_library",
+        "//shared/bytesutil:go_default_library",
+        "@com_github_gogo_protobuf//proto:go_default_library",
+        "@com_github_libp2p_go_libp2p_pubsub//pb:go_default_library",
+    ],
+)
+
 go_library(
     name = "go_default_library",
     testonly = 1,
