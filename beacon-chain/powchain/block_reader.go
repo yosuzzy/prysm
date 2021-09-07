@@ -155,7 +155,7 @@ func (s *Service) BlockByTimestamp(ctx context.Context, time uint64) (*types.Hea
 			// time - buffer <= head.time <= time + buffer
 			break
 		}
-		hinfo, err := s.retrieveHeaderInfo(ctx, estimatedBlk)
+		hinfo, err := s.retrieveHeaderInfoDebug(ctx, estimatedBlk, "inside loop")
 		if err != nil {
 			return nil, err
 		}
@@ -169,7 +169,6 @@ func (s *Service) BlockByTimestamp(ctx context.Context, time uint64) (*types.Hea
 		return s.retrieveHeaderInfo(ctx, cursorNum.Uint64())
 	}
 	if cursorTime > time {
-		fmt.Println("calling less target")
 		return s.findLessTargetEth1Block(ctx, big.NewInt(int64(estimatedBlk)), time)
 	}
 
@@ -184,7 +183,7 @@ func (s *Service) findLessTargetEth1Block(ctx context.Context, startBlk *big.Int
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
-		info, err := s.retrieveHeaderInfo(ctx, bn.Uint64())
+		info, err := s.retrieveHeaderInfoDebug(ctx, bn.Uint64(), "findLessTargetEth1Block")
 		if err != nil {
 			return nil, err
 		}
@@ -201,14 +200,14 @@ func (s *Service) findMoreTargetEth1Block(ctx context.Context, startBlk *big.Int
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
-		info, err := s.retrieveHeaderInfo(ctx, bn.Uint64())
+		info, err := s.retrieveHeaderInfoDebug(ctx, bn.Uint64(), "findMoreTargetEth1Block-1")
 		if err != nil {
 			return nil, err
 		}
 		// Return the last block before we hit the threshold
 		// time.
 		if info.Time > targetTime {
-			return s.retrieveHeaderInfo(ctx, info.Number.Uint64()-1)
+			return s.retrieveHeaderInfoDebug(ctx, info.Number.Uint64()-1, "findMoreTargetEth1Block-2")
 		}
 		// If time is equal, this is our target block.
 		if info.Time == targetTime {
@@ -224,6 +223,32 @@ func (s *Service) retrieveHeaderInfo(ctx context.Context, bNum uint64) (*types.H
 		return nil, err
 	}
 	if !exists {
+		blk, err := s.eth1DataFetcher.HeaderByNumber(ctx, bn)
+		if err != nil {
+			return nil, err
+		}
+		if blk == nil {
+			return nil, errors.New("header with the provided number does not exist")
+		}
+		if err := s.headerCache.AddHeader(blk); err != nil {
+			return nil, err
+		}
+		info, err = types.HeaderToHeaderInfo(blk)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return info, nil
+}
+
+func (s *Service) retrieveHeaderInfoDebug(ctx context.Context, bNum uint64, source string) (*types.HeaderInfo, error) {
+	bn := big.NewInt(int64(bNum))
+	exists, info, err := s.headerCache.HeaderInfoByHeight(bn)
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		log.Infof("Eth1 block not in headerCache. source = %s , height = %d ", source, bn)
 		blk, err := s.eth1DataFetcher.HeaderByNumber(ctx, bn)
 		if err != nil {
 			return nil, err
