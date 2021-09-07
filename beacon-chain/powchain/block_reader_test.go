@@ -225,7 +225,7 @@ func TestService_BlockNumberByTimestamp(t *testing.T) {
 	web3Service = setDefaultMocks(web3Service)
 	web3Service.eth1DataFetcher = &goodFetcher{backend: testAcc.Backend}
 
-	for i := 0; i < 200; i++ {
+	for i := 0; i < 2500; i++ {
 		testAcc.Backend.Commit()
 	}
 	ctx := context.Background()
@@ -233,7 +233,7 @@ func TestService_BlockNumberByTimestamp(t *testing.T) {
 	require.NoError(t, err)
 	web3Service.latestEth1Data.BlockTime = hd.Time
 	web3Service.latestEth1Data.BlockHeight = hd.Number.Uint64()
-	blk, err := web3Service.BlockByTimestamp(ctx, 1000 /* time */)
+	blk, err := web3Service.BlockByTimestamp(ctx, 25000 /* time */)
 	require.NoError(t, err)
 	if blk.Number.Cmp(big.NewInt(0)) == 0 {
 		t.Error("Returned a block with zero number, expected to be non zero")

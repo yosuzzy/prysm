@@ -165,11 +165,15 @@ func (s *Service) BlockByTimestamp(ctx context.Context, time uint64) (*types.Hea
 
 	// Exit early if we get the desired block.
 	if cursorTime == time {
+		fmt.Println("calling exact")
 		return s.retrieveHeaderInfo(ctx, cursorNum.Uint64())
 	}
 	if cursorTime > time {
+		fmt.Println("calling less target")
 		return s.findLessTargetEth1Block(ctx, big.NewInt(int64(estimatedBlk)), time)
 	}
+
+	fmt.Println("calling more target")
 	return s.findMoreTargetEth1Block(ctx, big.NewInt(int64(estimatedBlk)), time)
 }
 

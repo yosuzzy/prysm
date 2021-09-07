@@ -200,7 +200,9 @@ func (vs *Server) randomStuff(genesis time.Time) {
 		case slot := <-ticker.C():
 			log.Infof("calling GetBlock for slot %d", slot)
 			randaoReveal := [96]byte{}
+			start := time.Now()
 			_, err := vs.GetBlock(context.Background(), &ethpb.BlockRequest{Slot: slot, Graffiti: bytesutil.Bytes32(0), RandaoReveal: randaoReveal[:]})
+			log.Infof("GetBlock took %d ms", time.Since(start).Milliseconds())
 			if err != nil {
 				log.Error(err)
 			} else {
