@@ -11,6 +11,7 @@ import (
 	"math/big"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
@@ -180,7 +181,9 @@ func (dc *DepositCache) DepositsNumberAndRootAtHeight(ctx context.Context, block
 	defer span.End()
 	dc.depositsLock.RLock()
 	defer dc.depositsLock.RUnlock()
+	start := time.Now()
 	heightIdx := sort.Search(len(dc.deposits), func(i int) bool { return dc.deposits[i].Eth1BlockHeight > blockHeight.Uint64() })
+	log.Infof("GetBlock(): sort time DepositsNumberAndRootAtHeight: depositLen = %d, blockHeight = %d, sortTime = %d ms", len(dc.deposits), blockHeight, time.Since(start).Milliseconds())
 	// send the deposit root of the empty trie, if eth1follow distance is greater than the time of the earliest
 	// deposit.
 	if heightIdx == 0 {
