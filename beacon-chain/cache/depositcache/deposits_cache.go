@@ -183,7 +183,7 @@ func (dc *DepositCache) DepositsNumberAndRootAtHeight(ctx context.Context, block
 	defer dc.depositsLock.RUnlock()
 	start := time.Now()
 	heightIdx := sort.Search(len(dc.deposits), func(i int) bool { return dc.deposits[i].Eth1BlockHeight > blockHeight.Uint64() })
-	log.Infof("Sorting in DepositsNumberAndRootAtHeight: depositsLength = %d, blockHeight = %d,  timeTaken = %d ms", len(dc.deposits), blockHeight, time.Since(start).Milliseconds())
+	log.Infof("Sorting in DepositsNumberAndRootAtHeight: depositsLength = %d, blockHeight = %d,  timeTaken = %d msug", len(dc.deposits), blockHeight, time.Since(start).Milliseconds())
 	// send the deposit root of the empty trie, if eth1follow distance is greater than the time of the earliest
 	// deposit.
 	if heightIdx == 0 {
