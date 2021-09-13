@@ -112,6 +112,9 @@ func (s *Service) HeadSlot() types.Slot {
 
 // HeadRoot returns the root of the head of the chain.
 func (s *Service) HeadRoot(ctx context.Context) ([]byte, error) {
+	ctx, span := trace.StartSpan(ctx, "blockChain.HeadRoot")
+	defer span.End()
+
 	s.headLock.RLock()
 	defer s.headLock.RUnlock()
 

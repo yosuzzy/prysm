@@ -166,14 +166,12 @@ func (s *Service) BlockByTimestamp(ctx context.Context, time uint64) (*types.Hea
 
 	// Exit early if we get the desired block.
 	if cursorTime == time {
-		fmt.Println("calling exact")
 		return s.retrieveHeaderInfo(ctx, cursorNum.Uint64())
 	}
 	if cursorTime > time {
 		return s.findLessTargetEth1Block(ctx, big.NewInt(int64(estimatedBlk)), time)
 	}
 
-	fmt.Println("calling more target")
 	return s.findMoreTargetEth1Block(ctx, big.NewInt(int64(estimatedBlk)), time)
 }
 
@@ -251,7 +249,7 @@ func (s *Service) retrieveHeaderInfoDebug(ctx context.Context, bNum uint64, sour
 	if !exists {
 		start := time.Now()
 		blk, err := s.eth1DataFetcher.HeaderByNumber(ctx, bn)
-		log.Infof("Eth1 block not in headerCache. source = %s , height = %d, time = %d ms ", source, bn, time.Since(start).Milliseconds())
+		log.Infof("GetBlock(): Eth1 block not in headerCache. source = %s , height = %d, fetchTime = %d ms ", source, bn, time.Since(start).Milliseconds())
 		if err != nil {
 			return nil, err
 		}

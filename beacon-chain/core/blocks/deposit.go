@@ -211,7 +211,6 @@ func verifyDeposit(beaconState state.ReadOnlyBeaconState, deposit *ethpb.Deposit
 	if deposit == nil || deposit.Data == nil {
 		return errors.New("received nil deposit or nil deposit data")
 	}
-	log.Infof("proof: %#x", deposit.Proof)
 	eth1Data := beaconState.Eth1Data()
 	if eth1Data == nil {
 		return errors.New("received nil eth1data in the beacon state")

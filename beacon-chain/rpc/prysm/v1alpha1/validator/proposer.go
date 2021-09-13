@@ -190,6 +190,9 @@ func (vs *Server) ProposeBlock(ctx context.Context, rBlk *ethpb.SignedBeaconBloc
 //    - Determine the vote with the highest count. Prefer the vote with the highest eth1 block height in the event of a tie.
 //    - This vote's block is the eth1 block to use for the block proposal.
 func (vs *Server) eth1DataMajorityVote(ctx context.Context, beaconState state.BeaconState) (*ethpb.Eth1Data, error) {
+	ctx, span := trace.StartSpan(ctx, "ProposerServer.eth1DataMajorityVote")
+	defer span.End()
+
 	ctx, cancel := context.WithTimeout(ctx, eth1dataTimeout)
 	defer cancel()
 
@@ -368,6 +371,8 @@ func (vs *Server) randomETH1DataVote(ctx context.Context) (*ethpb.Eth1Data, erro
 // computeStateRoot computes the state root after a block has been processed through a state transition and
 // returns it to the validator client.
 func (vs *Server) computeStateRoot(ctx context.Context, block block.SignedBeaconBlock) ([]byte, error) {
+	ctx, span := trace.StartSpan(ctx, "ProposerServer.computeStateRoot")
+	defer span.End()
 	beaconState, err := vs.StateGen.StateByRoot(ctx, bytesutil.ToBytes32(block.Block().ParentRoot()))
 	if err != nil {
 		return nil, errors.Wrap(err, "could not retrieve beacon state")

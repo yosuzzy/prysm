@@ -11,6 +11,8 @@ import (
 	"github.com/prysmaticlabs/prysm/shared/bytesutil"
 	"github.com/prysmaticlabs/prysm/shared/hashutil"
 	"github.com/prysmaticlabs/prysm/shared/params"
+	"go.opencensus.io/trace"
+	"golang.org/x/net/context"
 )
 
 // IsActiveValidator returns the boolean value on whether the validator
@@ -176,6 +178,8 @@ func ValidatorChurnLimit(activeValidatorCount uint64) (uint64, error) {
 //    indices = get_active_validator_indices(state, epoch)
 //    return compute_proposer_index(state, indices, seed)
 func BeaconProposerIndex(state state.ReadOnlyBeaconState) (types.ValidatorIndex, error) {
+	_, span := trace.StartSpan(context.Background(), "core.BeaconProposerIndex")
+	defer span.End()
 	e := CurrentEpoch(state)
 	// The cache uses the state root of the previous epoch - minimum_seed_lookahead last slot as key. (e.g. Starting epoch 1, slot 32, the key would be block root at slot 31)
 	// For simplicity, the node will skip caching of genesis epoch.
