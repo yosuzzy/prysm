@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
@@ -248,8 +249,9 @@ func (s *Service) retrieveHeaderInfoDebug(ctx context.Context, bNum uint64, sour
 		return nil, err
 	}
 	if !exists {
-		log.Infof("Eth1 block not in headerCache. source = %s , height = %d ", source, bn)
+		start := time.Now()
 		blk, err := s.eth1DataFetcher.HeaderByNumber(ctx, bn)
+		log.Infof("Eth1 block not in headerCache. source = %s , height = %d, time = %d ms ", source, bn, time.Since(start).Milliseconds())
 		if err != nil {
 			return nil, err
 		}
