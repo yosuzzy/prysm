@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/pkg/errors"
 	types "github.com/prysmaticlabs/eth2-types"
@@ -424,19 +425,25 @@ func (s *Service) insertFinalizedDeposits(ctx context.Context, fRoot [32]byte) e
 	defer span.End()
 
 	// Update deposit cache.
+	start := time.Now()
 	finalizedState, err := s.cfg.StateGen.StateByRoot(ctx, fRoot)
+	log.Infof("time took for StateByRoot: %d ms", time.Since(start).Milliseconds())
 	if err != nil {
 		return errors.Wrap(err, "could not fetch finalized state")
 	}
 	// We update the cache up to the last deposit index in the finalized block's state.
 	// We can be confident that these deposits will be included in some block
 	// because the Eth1 follow distance makes such long-range reorgs extremely unlikely.
+	start = time.Now()
 	eth1DepositIndex := int64(finalizedState.Eth1Data().DepositCount - 1)
 	s.cfg.DepositCache.InsertFinalizedDeposits(ctx, eth1DepositIndex)
+	log.Infof("time took for InsertFinalizedDeposits: %d ms", time.Since(start).Milliseconds())
 	// Deposit proofs are only used during state transition and can be safely removed to save space.
+	start = time.Now()
 	if err = s.cfg.DepositCache.PruneProofs(ctx, eth1DepositIndex); err != nil {
 		return errors.Wrap(err, "could not prune deposit proofs")
 	}
+	log.Infof("time took for PruneProofs: %d ms", time.Since(start).Milliseconds())
 	return nil
 }
 

@@ -11,6 +11,7 @@ import (
 	"math/big"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
@@ -87,7 +88,9 @@ func (dc *DepositCache) InsertDeposit(ctx context.Context, d *ethpb.Deposit, blo
 		}).Warn("Ignoring nil deposit insertion")
 		return errors.New("nil deposit inserted into the cache")
 	}
+	log.Infof("locking deposits: InsertDeposit")
 	dc.depositsLock.Lock()
+	log.Infof("locked deposits: InsertDeposit")
 	defer dc.depositsLock.Unlock()
 
 	if int(index) != len(dc.deposits) {
@@ -100,6 +103,7 @@ func (dc *DepositCache) InsertDeposit(ctx context.Context, d *ethpb.Deposit, blo
 		dc.deposits[heightIdx:]...)
 	dc.deposits = append(dc.deposits[:heightIdx], newDeposits...)
 	historicalDepositsCount.Inc()
+	log.Infof("unlocking deposits: InsertDeposit")
 	return nil
 }
 
@@ -107,19 +111,24 @@ func (dc *DepositCache) InsertDeposit(ctx context.Context, d *ethpb.Deposit, blo
 func (dc *DepositCache) InsertDepositContainers(ctx context.Context, ctrs []*dbpb.DepositContainer) {
 	ctx, span := trace.StartSpan(ctx, "DepositsCache.InsertDepositContainers")
 	defer span.End()
+	log.Infof("locking deposits: InsertDepositContainers")
 	dc.depositsLock.Lock()
+	log.Infof("locked deposits: InsertDepositContainers")
 	defer dc.depositsLock.Unlock()
 
 	sort.SliceStable(ctrs, func(i int, j int) bool { return ctrs[i].Index < ctrs[j].Index })
 	dc.deposits = ctrs
 	historicalDepositsCount.Add(float64(len(ctrs)))
+	log.Infof("un-locking deposits: InsertDepositContainers")
 }
 
 // InsertFinalizedDeposits inserts deposits up to eth1DepositIndex (inclusive) into the finalized deposits cache.
 func (dc *DepositCache) InsertFinalizedDeposits(ctx context.Context, eth1DepositIndex int64) {
 	ctx, span := trace.StartSpan(ctx, "DepositsCache.InsertFinalizedDeposits")
 	defer span.End()
+	log.Infof("locking deposits: InsertFinalizedDeposits")
 	dc.depositsLock.Lock()
+	log.Infof("locked deposits: InsertFinalizedDeposits")
 	defer dc.depositsLock.Unlock()
 
 	depositTrie := dc.finalizedDeposits.Deposits
@@ -131,12 +140,16 @@ func (dc *DepositCache) InsertFinalizedDeposits(ctx context.Context, eth1Deposit
 		if d.Index > eth1DepositIndex {
 			break
 		}
+		start := time.Now()
 		depHash, err := d.Deposit.Data.HashTreeRoot()
+		log.Infof("creating Hash: %d ms", time.Since(start).Milliseconds())
 		if err != nil {
 			log.WithError(err).Error("Could not hash deposit data. Finalized deposit cache not updated.")
 			return
 		}
+		start = time.Now()
 		depositTrie.Insert(depHash[:], insertIndex)
+		log.Infof("inserting Hash: %d ms", time.Since(start).Milliseconds())
 		insertIndex++
 	}
 
@@ -144,15 +157,19 @@ func (dc *DepositCache) InsertFinalizedDeposits(ctx context.Context, eth1Deposit
 		Deposits:        depositTrie,
 		MerkleTrieIndex: eth1DepositIndex,
 	}
+	log.Infof("un-locking deposits: InsertFinalizedDeposits")
 }
 
 // AllDepositContainers returns all historical deposit containers.
 func (dc *DepositCache) AllDepositContainers(ctx context.Context) []*dbpb.DepositContainer {
 	ctx, span := trace.StartSpan(ctx, "DepositsCache.AllDepositContainers")
 	defer span.End()
+	log.Infof("locking deposits: AllDepositContainers")
 	dc.depositsLock.RLock()
+	log.Infof("locked deposits: AllDepositContainers")
 	defer dc.depositsLock.RUnlock()
 
+	log.Infof("un-locking deposits: AllDepositContainers")
 	return dc.deposits
 }
 
@@ -161,7 +178,9 @@ func (dc *DepositCache) AllDepositContainers(ctx context.Context) []*dbpb.Deposi
 func (dc *DepositCache) AllDeposits(ctx context.Context, untilBlk *big.Int) []*ethpb.Deposit {
 	ctx, span := trace.StartSpan(ctx, "DepositsCache.AllDeposits")
 	defer span.End()
+	log.Infof("locking deposits: AllDeposits")
 	dc.depositsLock.RLock()
+	log.Infof("locked deposits: AllDeposits")
 	defer dc.depositsLock.RUnlock()
 
 	var deposits []*ethpb.Deposit
@@ -170,6 +189,7 @@ func (dc *DepositCache) AllDeposits(ctx context.Context, untilBlk *big.Int) []*e
 			deposits = append(deposits, ctnr.Deposit)
 		}
 	}
+	log.Infof("un-locking deposits: AllDeposits")
 	return deposits
 }
 
@@ -178,7 +198,9 @@ func (dc *DepositCache) AllDeposits(ctx context.Context, untilBlk *big.Int) []*e
 func (dc *DepositCache) DepositsNumberAndRootAtHeight(ctx context.Context, blockHeight *big.Int) (uint64, [32]byte) {
 	ctx, span := trace.StartSpan(ctx, "DepositsCache.DepositsNumberAndRootAtHeight")
 	defer span.End()
+	log.Infof("locking deposits: DepositsNumberAndRootAtHeight")
 	dc.depositsLock.RLock()
+	log.Infof("locked deposits: DepositsNumberAndRootAtHeight")
 	defer dc.depositsLock.RUnlock()
 	heightIdx := sort.Search(len(dc.deposits), func(i int) bool { return dc.deposits[i].Eth1BlockHeight > blockHeight.Uint64() })
 	// send the deposit root of the empty trie, if eth1follow distance is greater than the time of the earliest
@@ -186,6 +208,7 @@ func (dc *DepositCache) DepositsNumberAndRootAtHeight(ctx context.Context, block
 	if heightIdx == 0 {
 		return 0, [32]byte{}
 	}
+	log.Infof("un-locking deposits: DepositsNumberAndRootAtHeight")
 	return uint64(heightIdx), bytesutil.ToBytes32(dc.deposits[heightIdx-1].DepositRoot)
 }
 
@@ -194,7 +217,9 @@ func (dc *DepositCache) DepositsNumberAndRootAtHeight(ctx context.Context, block
 func (dc *DepositCache) DepositByPubkey(ctx context.Context, pubKey []byte) (*ethpb.Deposit, *big.Int) {
 	ctx, span := trace.StartSpan(ctx, "DepositsCache.DepositByPubkey")
 	defer span.End()
+	log.Infof("locking deposits: DepositByPubkey")
 	dc.depositsLock.RLock()
+	log.Infof("locked deposits: DepositByPubkey")
 	defer dc.depositsLock.RUnlock()
 
 	var deposit *ethpb.Deposit
@@ -206,6 +231,7 @@ func (dc *DepositCache) DepositByPubkey(ctx context.Context, pubKey []byte) (*et
 			break
 		}
 	}
+	log.Infof("un-locking deposits: DepositByPubkey")
 	return deposit, blockNum
 }
 
@@ -213,9 +239,12 @@ func (dc *DepositCache) DepositByPubkey(ctx context.Context, pubKey []byte) (*et
 func (dc *DepositCache) FinalizedDeposits(ctx context.Context) *FinalizedDeposits {
 	ctx, span := trace.StartSpan(ctx, "DepositsCache.FinalizedDeposits")
 	defer span.End()
+	log.Infof("locking deposits: FinalizedDeposits")
 	dc.depositsLock.RLock()
+	log.Infof("locked deposits: FinalizedDeposits")
 	defer dc.depositsLock.RUnlock()
 
+	log.Infof("un-locking deposits: FinalizedDeposits")
 	return &FinalizedDeposits{
 		Deposits:        dc.finalizedDeposits.Deposits.Copy(),
 		MerkleTrieIndex: dc.finalizedDeposits.MerkleTrieIndex,
@@ -227,7 +256,9 @@ func (dc *DepositCache) FinalizedDeposits(ctx context.Context) *FinalizedDeposit
 func (dc *DepositCache) NonFinalizedDeposits(ctx context.Context, untilBlk *big.Int) []*ethpb.Deposit {
 	ctx, span := trace.StartSpan(ctx, "DepositsCache.NonFinalizedDeposits")
 	defer span.End()
+	log.Infof("locking deposits: NonFinalizedDeposits")
 	dc.depositsLock.RLock()
+	log.Infof("locked deposits: NonFinalizedDeposits")
 	defer dc.depositsLock.RUnlock()
 
 	if dc.finalizedDeposits == nil {
@@ -241,7 +272,7 @@ func (dc *DepositCache) NonFinalizedDeposits(ctx context.Context, untilBlk *big.
 			deposits = append(deposits, d.Deposit)
 		}
 	}
-
+	log.Infof("un-locking deposits: NonFinalizedDeposits")
 	return deposits
 }
 
@@ -249,7 +280,9 @@ func (dc *DepositCache) NonFinalizedDeposits(ctx context.Context, untilBlk *big.
 func (dc *DepositCache) PruneProofs(ctx context.Context, untilDepositIndex int64) error {
 	ctx, span := trace.StartSpan(ctx, "DepositsCache.PruneProofs")
 	defer span.End()
+	log.Infof("locking deposits: PruneProofs")
 	dc.depositsLock.Lock()
+	log.Infof("locked deposits: PruneProofs")
 	defer dc.depositsLock.Unlock()
 
 	if untilDepositIndex >= int64(len(dc.deposits)) {
@@ -266,6 +299,6 @@ func (dc *DepositCache) PruneProofs(ctx context.Context, untilDepositIndex int64
 		}
 		dc.deposits[i].Deposit.Proof = nil
 	}
-
+	log.Infof("un-locking deposits: PruneProofs")
 	return nil
 }
