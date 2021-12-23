@@ -55,7 +55,7 @@ func (bs *Server) SubmitAttesterSlashing(
 			return nil, status.Errorf(codes.Internal, "Could not broadcast slashing object: %v", err)
 		}
 	}
-	indices := slice.IntersectionUint64(req.Attestation_1.AttestingIndices, req.Attestation_2.AttestingIndices)
+	indices := slice.Intersection(req.Attestation_1.AttestingIndices, req.Attestation_2.AttestingIndices)
 	slashedIndices := make([]types.ValidatorIndex, len(indices))
 	for i, index := range indices {
 		slashedIndices[i] = types.ValidatorIndex(index)

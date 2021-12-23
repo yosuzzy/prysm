@@ -23,7 +23,7 @@ func TestSubsetUint64(t *testing.T) {
 		{[]uint64{1, 2, 3, 4, 5}, []uint64{1, 2, 3, 4}, false},
 	}
 	for _, tt := range testCases {
-		result := slice.SubsetUint64(tt.setA, tt.setB)
+		result := slice.Subset[uint64](tt.setA, tt.setB)
 		if result != tt.out {
 			t.Errorf("%v, got %v, want %v", tt.setA, result, tt.out)
 		}
@@ -57,7 +57,7 @@ func TestIntersectionUint64(t *testing.T) {
 		setA := append([]uint64{}, tt.setA...)
 		setB := append([]uint64{}, tt.setB...)
 		setC := append([]uint64{}, tt.setC...)
-		result := slice.IntersectionUint64(setA, setB, setC)
+		result := slice.Intersection(setA, setB, setC)
 		sort.Slice(result, func(i, j int) bool {
 			return result[i] < result[j]
 		})
@@ -121,7 +121,7 @@ func TestIntersectionInt64(t *testing.T) {
 		setA := append([]int64{}, tt.setA...)
 		setB := append([]int64{}, tt.setB...)
 		setC := append([]int64{}, tt.setC...)
-		result := slice.IntersectionInt64(setA, setB, setC)
+		result := slice.Intersection(setA, setB, setC)
 		sort.Slice(result, func(i, j int) bool {
 			return result[i] < result[j]
 		})
@@ -155,7 +155,7 @@ func TestUnionUint64(t *testing.T) {
 		{[]uint64{1}, []uint64{1}, []uint64{1}},
 	}
 	for _, tt := range testCases {
-		result := slice.UnionUint64(tt.setA, tt.setB)
+		result := slice.Union(tt.setA, tt.setB)
 		if !reflect.DeepEqual(result, tt.out) {
 			t.Errorf("got %d, want %d", result, tt.out)
 		}
@@ -166,7 +166,7 @@ func TestUnionUint64(t *testing.T) {
 		{6, 7, 8},
 		{9, 10, 11},
 	}
-	variadicResult := slice.UnionUint64(items...)
+	variadicResult := slice.Union(items...)
 	want := []uint64{3, 4, 5, 6, 7, 8, 9, 10, 11}
 	if !reflect.DeepEqual(want, variadicResult) {
 		t.Errorf("Received %v, wanted %v", variadicResult, want)
@@ -188,7 +188,7 @@ func TestUnionInt64(t *testing.T) {
 		{[]int64{1}, []int64{1}, []int64{1}},
 	}
 	for _, tt := range testCases {
-		result := slice.UnionInt64(tt.setA, tt.setB)
+		result := slice.Union(tt.setA, tt.setB)
 		if !reflect.DeepEqual(result, tt.out) {
 			t.Errorf("got %d, want %d", result, tt.out)
 		}
@@ -198,7 +198,7 @@ func TestUnionInt64(t *testing.T) {
 		{6, 7, 8},
 		{9, 10, 11},
 	}
-	variadicResult := slice.UnionInt64(items...)
+	variadicResult := slice.Union(items...)
 	want := []int64{3, 4, 5, 6, 7, 8, 9, 10, 11}
 	if !reflect.DeepEqual(want, variadicResult) {
 		t.Errorf("Received %v, wanted %v", variadicResult, want)
@@ -240,7 +240,7 @@ func TestNotUint64(t *testing.T) {
 		{[]uint64{1}, []uint64{1}, []uint64{}},
 	}
 	for _, tt := range testCases {
-		result := slice.NotUint64(tt.setA, tt.setB)
+		result := slice.Not(tt.setA, tt.setB)
 		if !reflect.DeepEqual(result, tt.out) {
 			t.Errorf("got %d, want %d", result, tt.out)
 		}
@@ -262,7 +262,7 @@ func TestNotInt64(t *testing.T) {
 		{[]int64{1}, []int64{1}, []int64{}},
 	}
 	for _, tt := range testCases {
-		result := slice.NotInt64(tt.setA, tt.setB)
+		result := slice.Not(tt.setA, tt.setB)
 		if !reflect.DeepEqual(result, tt.out) {
 			t.Errorf("got %d, want %d", result, tt.out)
 		}
@@ -281,7 +281,7 @@ func TestIsInUint64(t *testing.T) {
 		{100, []uint64{2, 3, 5, 4, 6}, false},
 	}
 	for _, tt := range testCases {
-		result := slice.IsInUint64(tt.a, tt.b)
+		result := slice.IsIn(tt.a, tt.b)
 		if result != tt.result {
 			t.Errorf("IsIn(%d, %v)=%v, wanted: %v",
 				tt.a, tt.b, result, tt.result)
@@ -301,7 +301,7 @@ func TestIsInInt64(t *testing.T) {
 		{100, []int64{2, 3, 5, 4, 6}, false},
 	}
 	for _, tt := range testCases {
-		result := slice.IsInInt64(tt.a, tt.b)
+		result := slice.IsIn(tt.a, tt.b)
 		if result != tt.result {
 			t.Errorf("IsIn(%d, %v)=%v, wanted: %v",
 				tt.a, tt.b, result, tt.result)

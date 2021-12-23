@@ -169,7 +169,7 @@ func insertDoubleAttestationIntoPool(conns ...*grpc.ClientConn) error {
 
 	valsToSlash := uint64(2)
 	for i := uint64(0); i < valsToSlash && i < uint64(len(committee)); i++ {
-		if len(slice.IntersectionUint64(slashedIndices, []uint64{uint64(committee[i])})) > 0 {
+		if len(slice.Intersection(slashedIndices, []uint64{uint64(committee[i])})) > 0 {
 			valsToSlash++
 			continue
 		}

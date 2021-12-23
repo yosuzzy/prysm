@@ -44,7 +44,7 @@ func (s *subnetIDs) AddAttesterSubnetID(slot types.Slot, subnetID uint64) {
 	ids := []uint64{subnetID}
 	val, exists := s.attester.Get(slot)
 	if exists {
-		ids = slice.UnionUint64(append(val.([]uint64), ids...))
+		ids = slice.Union(append(val.([]uint64), ids...))
 	}
 	s.attester.Add(slot, ids)
 }
@@ -72,7 +72,7 @@ func (s *subnetIDs) AddAggregatorSubnetID(slot types.Slot, subnetID uint64) {
 	ids := []uint64{subnetID}
 	val, exists := s.aggregator.Get(slot)
 	if exists {
-		ids = slice.UnionUint64(append(val.([]uint64), ids...))
+		ids = slice.Union(append(val.([]uint64), ids...))
 	}
 	s.aggregator.Add(slot, ids)
 }

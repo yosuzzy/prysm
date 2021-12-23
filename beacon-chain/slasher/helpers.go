@@ -120,7 +120,7 @@ func validateBlockHeaderIntegrity(header *ethpb.SignedBeaconBlockHeader) bool {
 }
 
 func logAttesterSlashing(slashing *ethpb.AttesterSlashing) {
-	indices := slice.IntersectionUint64(slashing.Attestation_1.AttestingIndices, slashing.Attestation_2.AttestingIndices)
+	indices := slice.Intersection(slashing.Attestation_1.AttestingIndices, slashing.Attestation_2.AttestingIndices)
 	log.WithFields(logrus.Fields{
 		"validatorIndex":  indices,
 		"prevSourceEpoch": slashing.Attestation_1.Data.Source.Epoch,
