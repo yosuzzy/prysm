@@ -286,7 +286,7 @@ func TestBlocksQueue_Loop(t *testing.T) {
 			for _, blk := range blocks {
 				receivedBlockSlots = append(receivedBlockSlots, blk.Block().Slot())
 			}
-			missing := slice.NotSlot(slice.IntersectionSlot(tt.expectedBlockSlots, receivedBlockSlots), tt.expectedBlockSlots)
+			missing := slice.Not(slice.Intersection(tt.expectedBlockSlots, receivedBlockSlots), tt.expectedBlockSlots)
 			if len(missing) > 0 {
 				t.Errorf("Missing blocks at slots %v", missing)
 			}

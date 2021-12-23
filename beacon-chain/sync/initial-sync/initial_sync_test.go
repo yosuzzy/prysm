@@ -179,7 +179,7 @@ func connectPeer(t *testing.T, host *p2pt.TestP2P, datum *peerData, peerStatus *
 		requestedBlocks := makeSequence(req.StartSlot, req.StartSlot.Add((req.Count-1)*req.Step))
 
 		// Expected failure range
-		if len(slice.IntersectionSlot(datum.failureSlots, requestedBlocks)) > 0 {
+		if len(slice.Intersection(datum.failureSlots, requestedBlocks)) > 0 {
 			_, err := stream.Write([]byte{0x01})
 			assert.NoError(t, err)
 			msg := p2pTypes.ErrorMessage("bad")
@@ -189,7 +189,7 @@ func connectPeer(t *testing.T, host *p2pt.TestP2P, datum *peerData, peerStatus *
 		}
 
 		// Determine the correct subset of blocks to return as dictated by the test scenario.
-		slots := slice.IntersectionSlot(datum.blocks, requestedBlocks)
+		slots := slice.Intersection(datum.blocks, requestedBlocks)
 
 		ret := make([]*ethpb.SignedBeaconBlock, 0)
 		for _, slot := range slots {

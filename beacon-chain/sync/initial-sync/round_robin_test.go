@@ -313,7 +313,7 @@ func TestService_roundRobinSync(t *testing.T) {
 			for _, blk := range mc.BlocksReceived {
 				receivedBlockSlots = append(receivedBlockSlots, blk.Block().Slot())
 			}
-			missing := slice.NotSlot(slice.IntersectionSlot(tt.expectedBlockSlots, receivedBlockSlots), tt.expectedBlockSlots)
+			missing := slice.Not(slice.Intersection(tt.expectedBlockSlots, receivedBlockSlots), tt.expectedBlockSlots)
 			if len(missing) > 0 {
 				t.Errorf("Missing blocks at slots %v", missing)
 			}
@@ -557,7 +557,7 @@ func TestService_blockProviderScoring(t *testing.T) {
 	for _, blk := range mc.BlocksReceived {
 		receivedBlockSlots = append(receivedBlockSlots, blk.Block().Slot())
 	}
-	missing := slice.NotSlot(slice.IntersectionSlot(expectedBlockSlots, receivedBlockSlots), expectedBlockSlots)
+	missing := slice.Not(slice.Intersection(expectedBlockSlots, receivedBlockSlots), expectedBlockSlots)
 	if len(missing) > 0 {
 		t.Errorf("Missing blocks at slots %v", missing)
 	}
@@ -626,7 +626,7 @@ func TestService_syncToFinalizedEpoch(t *testing.T) {
 	for _, blk := range mc.BlocksReceived {
 		receivedBlockSlots = append(receivedBlockSlots, blk.Block().Slot())
 	}
-	missing := slice.NotSlot(slice.IntersectionSlot(expectedBlockSlots, receivedBlockSlots), expectedBlockSlots)
+	missing := slice.Not(slice.Intersection(expectedBlockSlots, receivedBlockSlots), expectedBlockSlots)
 	if len(missing) > 0 {
 		t.Errorf("Missing blocks at slots %v", missing)
 	}

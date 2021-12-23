@@ -527,7 +527,7 @@ func TestIntersectionSlot(t *testing.T) {
 		setA := append([]types.Slot{}, tt.setA...)
 		setB := append([]types.Slot{}, tt.setB...)
 		setC := append([]types.Slot{}, tt.setC...)
-		result := slice.IntersectionSlot(setA, setB, setC)
+		result := slice.Intersection(setA, setB, setC)
 		sort.Slice(result, func(i, j int) bool {
 			return result[i] < result[j]
 		})
@@ -561,7 +561,7 @@ func TestNotSlot(t *testing.T) {
 		{[]types.Slot{1}, []types.Slot{1}, []types.Slot{}},
 	}
 	for _, tt := range testCases {
-		result := slice.NotSlot(tt.setA, tt.setB)
+		result := slice.Not(tt.setA, tt.setB)
 		if !reflect.DeepEqual(result, tt.out) {
 			t.Errorf("got %d, want %d", result, tt.out)
 		}
@@ -580,7 +580,7 @@ func TestIsInSlots(t *testing.T) {
 		{100, []types.Slot{2, 3, 5, 4, 6}, false},
 	}
 	for _, tt := range testCases {
-		result := slice.IsInSlots(tt.a, tt.b)
+		result := slice.IsIn(tt.a, tt.b)
 		if result != tt.result {
 			t.Errorf("IsIn(%d, %v)=%v, wanted: %v",
 				tt.a, tt.b, result, tt.result)
