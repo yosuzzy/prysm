@@ -7,7 +7,7 @@ import (
 // Subset returns true if the first array is
 // completely contained in the second array with time
 // complexity of approximately o(n).
-func Subset[T uint64|int64](a, b []T) bool {
+func Subset[T ~uint64|int64](a, b []T) bool {
 	if len(a) > len(b) {
 		return false
 	}
@@ -63,7 +63,7 @@ func Intersection[T ~uint64|int64](s ...[]T) []T {
 // complexity of approximately O(n) leveraging a map to
 // check for element existence off by a constant factor
 // of underlying map efficiency.
-func Union[T uint64|int64](s ...[]T) []T {
+func Union[T ~uint64|int64](s ...[]T) []T {
 	if len(s) == 0 {
 		return []T{}
 	}
