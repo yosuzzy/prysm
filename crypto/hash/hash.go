@@ -140,81 +140,36 @@ func FastSum256(data []byte) [32]byte {
 // ------------------------------------
 // No abstraction in these functions, just for playing until we get a feeling if
 // it's worth pursuing.
-func PotuzHasherAVX2Chunks(dst [][32]byte, inp [][32]byte, count uint64) {
-	C.sha256_8_avx2((*C.uchar)(&dst[0][0]), (*C.uchar)(&inp[0][0]), C.ulong(count))
+func PotuzHasherArmv8Neonx4Chunks(dst [][32]byte, inp [][32]byte, count uint64) {
+	C.sha256_armv8_neon_x4((*C.uchar)(&dst[0][0]), (*C.uchar)(&inp[0][0]), C.ulong(count))
 }
 
-func PotuzHasherAVXChunks(dst [][32]byte, inp [][32]byte, count uint64) {
-	C.sha256_4_avx((*C.uchar)(&dst[0][0]), (*C.uchar)(&inp[0][0]), C.ulong(count))
+func PotuzHasherArmv8Neonx1Chunks(dst [][32]byte, inp [][32]byte, count uint64) {
+	C.sha256_armv8_neon_x1((*C.uchar)(&dst[0][0]), (*C.uchar)(&inp[0][0]), C.ulong(count))
 }
 
-func PotuzHasherShaniChunks(dst [][32]byte, inp [][32]byte, count uint64) {
-	C.sha256_shani((*C.uchar)(&dst[0][0]), (*C.uchar)(&inp[0][0]), C.ulong(count))
+func PotuzHasherArmv8Neonx1(dst []byte, inp []byte, count uint64) {
+	C.sha256_armv8_neon_x1((*C.uchar)(&dst[0]), (*C.uchar)(&inp[0]), C.ulong(count))
 }
 
-func PotuzHasherShani(dst []byte, inp []byte, count uint64) {
-	C.sha256_shani((*C.uchar)(&dst[0]), (*C.uchar)(&inp[0]), C.ulong(count))
-}
-
-func PotuzHasherAVX(dst []byte, inp []byte, count uint64) {
-	C.sha256_4_avx((*C.uchar)(&dst[0]), (*C.uchar)(&inp[0]), C.ulong(count))
-}
-
-func PotuzHasherAVX2(dst []byte, inp []byte, count uint64) {
-	C.sha256_8_avx2((*C.uchar)(&dst[0]), (*C.uchar)(&inp[0]), C.ulong(count))
-}
-
-func PotuzHasher2Chunks(dst []byte, inp []byte) {
-	C.sha256_1_avx((*C.uchar)(&dst[0]), (*C.uchar)(&inp[0]))
+func PotuzHasherArmv8Neonx4(dst []byte, inp []byte, count uint64) {
+	C.sha256_armv8_neon_x4((*C.uchar)(&dst[0]), (*C.uchar)(&inp[0]), C.ulong(count))
 }
 
 // no check of the chunks length!
-func Hash2ChunksAVX(first [32]byte, second [32]byte) [32]byte {
+func Hash2ChunksNeon(first [32]byte, second [32]byte) [32]byte {
 	buf := [32]byte{}
 	chunks := make([]byte, 64)
 	copy(chunks, first[:])
 	copy(chunks[32:], second[:])
 
-	C.sha256_1_avx((*C.uchar)(&buf[0]), (*C.uchar)(&chunks[0]))
+	C.sha256_armv8_neon_x1((*C.uchar)(&buf[0]), (*C.uchar)(&chunks[0]), C.ulong(1))
 	return buf
 }
 
-// no check of the chunks length!
-func Hash2ChunksAVX2(first [32]byte, second [32]byte) [32]byte {
-	buf := [32]byte{}
-	chunks := make([]byte, 64)
-	copy(chunks, first[:])
-	copy(chunks[32:], second[:])
 
-	C.sha256_1_avx((*C.uchar)(&buf[0]), (*C.uchar)(&chunks[0]))
-	return buf
-}
-
-// no check of the chunks length!
-func Hash2ChunksShani(first [32]byte, second [32]byte) [32]byte {
-	buf := [32]byte{}
-	chunks := make([]byte, 64)
-	copy(chunks, first[:])
-	copy(chunks[32:], second[:])
-
-	C.sha256_shani((*C.uchar)(&buf[0]), (*C.uchar)(&chunks[0]), C.ulong(1))
-	return buf
-}
-
-func MixinLengthAVX(root [32]byte, length uint64) [32]byte {
+func MixinLengthArmv8Neon(root [32]byte, length uint64) [32]byte {
 	val := [32]byte{}
 	binary.LittleEndian.PutUint64(val[:], length)
-	return Hash2ChunksAVX(root, val)
-}
-
-func MixinLengthAVX2(root [32]byte, length uint64) [32]byte {
-	val := [32]byte{}
-	binary.LittleEndian.PutUint64(val[:], length)
-	return Hash2ChunksAVX2(root, val)
-}
-
-func MixinLengthShani(root [32]byte, length uint64) [32]byte {
-	val := [32]byte{}
-	binary.LittleEndian.PutUint64(val[:], length)
-	return Hash2ChunksShani(root, val)
+	return Hash2ChunksNeon(root, val)
 }

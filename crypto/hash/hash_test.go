@@ -120,7 +120,6 @@ func TestCustomHash_Shani(t *testing.T) {
 	hash.PotuzHasherShani(root, hash0, 1)
 	assert.DeepEqual(t, hashOf1[:], root)
 }
-*/
 func TestCustomHash_Avx2(t *testing.T) {
 	hash0 := make([]byte, 64)
 	root := make([]byte, 32)
@@ -141,7 +140,6 @@ func TestCustomHash_SSE(t *testing.T) {
 	assert.DeepEqual(t, hashOf1[:], root)
 }
 
-/*
 func BenchmarkHashBalanceAVX2(b *testing.B) {
 	zero_hash_array := make([][32]byte, 40)
 	for i := 1; i < 40; i++ {
@@ -157,7 +155,6 @@ func BenchmarkHashBalanceAVX2(b *testing.B) {
 		require.NoError(b, err)
 	}
 }
-*/
 func BenchmarkHashBalanceAVX(b *testing.B) {
 	zero_hash_array := make([][32]byte, 40)
 	for i := 1; i < 40; i++ {
@@ -174,7 +171,6 @@ func BenchmarkHashBalanceAVX(b *testing.B) {
 	}
 }
 
-/*
 func BenchmarkHashBalanceShani(b *testing.B) {
 	zero_hash_array := make([][32]byte, 40)
 	for i := 1; i < 40; i++ {
@@ -191,10 +187,43 @@ func BenchmarkHashBalanceShani(b *testing.B) {
 	}
 }
 */
+func BenchmarkHashBalanceNeonx1(b *testing.B) {
+	zero_hash_array := make([][32]byte, 40)
+	for i := 1; i < 40; i++ {
+		zero_hash_array[i] = hash.Hash2ChunksNeon(zero_hash_array[i-1], zero_hash_array[i-1])
+	}
+	balances := make([]uint64, 400000)
+	for i := 0; i < len(balances); i++ {
+		balances[i] = rand.Uint64()
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := stateutil.Uint64ListRootWithRegistryLimitArmv8Neonx1(balances, zero_hash_array)
+		require.NoError(b, err)
+	}
+}
+
+func BenchmarkHashBalanceNeonx4(b *testing.B) {
+	zero_hash_array := make([][32]byte, 40)
+	for i := 1; i < 40; i++ {
+		zero_hash_array[i] = hash.Hash2ChunksNeon(zero_hash_array[i-1], zero_hash_array[i-1])
+	}
+	balances := make([]uint64, 400000)
+	for i := 0; i < len(balances); i++ {
+		balances[i] = rand.Uint64()
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := stateutil.Uint64ListRootWithRegistryLimitArmv8Neonx4(balances, zero_hash_array)
+		require.NoError(b, err)
+	}
+}
+
+
 func BenchmarkHashBalancePrysm(b *testing.B) {
 	zero_hash_array := make([][32]byte, 40)
 	for i := 1; i < 40; i++ {
-		zero_hash_array[i] = hash.Hash2ChunksAVX(zero_hash_array[i-1], zero_hash_array[i-1])
+		zero_hash_array[i] = hash.Hash2ChunksNeon(zero_hash_array[i-1], zero_hash_array[i-1])
 	}
 	balances := make([]uint64, 400000)
 	for i := 0; i < len(balances); i++ {
