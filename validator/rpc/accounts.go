@@ -26,11 +26,15 @@ func (s *Server) ListAccounts(ctx context.Context, req *pb.ListAccountsRequest) 
 	if !s.walletInitialized {
 		return nil, status.Error(codes.FailedPrecondition, "Wallet not yet initialized")
 	}
+	km := s.validatorService.Keymanager()
+	if km == nil { // DONT DO THIS.
+		return nil, status.Error(codes.FailedPrecondition, "Keymanager not yet initialized")
+	}
 	if int(req.PageSize) > cmd.Get().MaxRPCPageSize {
 		return nil, status.Errorf(codes.InvalidArgument, "Requested page size %d can not be greater than max size %d",
 			req.PageSize, cmd.Get().MaxRPCPageSize)
 	}
-	keys, err := s.keymanager.FetchValidatingPublicKeys(ctx)
+	keys, err := km.FetchValidatingPublicKeys(ctx)
 	if err != nil {
 		return nil, err
 	}

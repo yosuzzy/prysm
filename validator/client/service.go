@@ -84,7 +84,6 @@ type Config struct {
 	Endpoint                   string
 	Validator                  iface.Validator
 	ValDB                      db.Database
-	KeyManager                 keymanager.IKeymanager
 	GraffitiFlag               string
 	CertFlag                   string
 	DataDir                    string
@@ -103,7 +102,6 @@ func NewValidatorService(ctx context.Context, cfg *Config) (*ValidatorService, e
 		withCert:              cfg.CertFlag,
 		dataDir:               cfg.DataDir,
 		graffiti:              []byte(cfg.GraffitiFlag),
-		keyManager:            cfg.KeyManager,
 		logValidatorBalances:  cfg.LogValidatorBalances,
 		emitAccountMetrics:    cfg.EmitAccountMetrics,
 		maxCallRecvMsgSize:    cfg.GrpcMaxCallRecvMsgSizeFlag,
@@ -208,6 +206,10 @@ func (v *ValidatorService) Start() {
 	v.validator = valStruct
 	go run(v.ctx, v.validator)
 	go v.recheckKeys(v.ctx)
+}
+
+func (v *ValidatorService) Keymanager() keymanager.IKeymanager {
+	return v.validator.GetKeymanager()
 }
 
 // Stop the validator service.

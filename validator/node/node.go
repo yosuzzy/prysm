@@ -34,12 +34,10 @@ import (
 	"github.com/prysmaticlabs/prysm/runtime/debug"
 	"github.com/prysmaticlabs/prysm/runtime/prereqs"
 	"github.com/prysmaticlabs/prysm/runtime/version"
-	accountsiface "github.com/prysmaticlabs/prysm/validator/accounts/iface"
 	"github.com/prysmaticlabs/prysm/validator/accounts/wallet"
 	"github.com/prysmaticlabs/prysm/validator/client"
 	"github.com/prysmaticlabs/prysm/validator/db/kv"
 	g "github.com/prysmaticlabs/prysm/validator/graffiti"
-	"github.com/prysmaticlabs/prysm/validator/keymanager"
 	"github.com/prysmaticlabs/prysm/validator/keymanager/imported"
 	"github.com/prysmaticlabs/prysm/validator/rpc"
 	validatorMiddleware "github.com/prysmaticlabs/prysm/validator/rpc/apimiddleware"
@@ -175,7 +173,6 @@ func (c *ValidatorClient) Close() {
 }
 
 func (c *ValidatorClient) initializeFromCLI(cliCtx *cli.Context) error {
-	var keyManager keymanager.IKeymanager
 	var err error
 	if cliCtx.IsSet(flags.InteropNumValidators.Name) {
 		numValidatorKeys := cliCtx.Uint64(flags.InteropNumValidators.Name)
@@ -193,14 +190,6 @@ func (c *ValidatorClient) initializeFromCLI(cliCtx *cli.Context) error {
 			return errors.Wrap(err, "could not open wallet")
 		}
 		c.wallet = w
-		log.WithFields(logrus.Fields{
-			"wallet":          w.AccountsDir(),
-			"keymanager-kind": w.KeymanagerKind().String(),
-		}).Info("Opened validator wallet")
-		keyManager, err = w.InitializeKeymanager(cliCtx.Context, accountsiface.InitKeymanagerConfig{ListenForChanges: true})
-		if err != nil {
-			return errors.Wrap(err, "could not read keymanager for wallet")
-		}
 	}
 	dataDir := cliCtx.String(flags.WalletDirFlag.Name)
 	if c.wallet != nil {
@@ -252,11 +241,11 @@ func (c *ValidatorClient) initializeFromCLI(cliCtx *cli.Context) error {
 			return err
 		}
 	}
-	if err := c.registerValidatorService(keyManager); err != nil {
+	if err := c.registerValidatorService(); err != nil {
 		return err
 	}
 	if cliCtx.Bool(flags.EnableRPCFlag.Name) {
-		if err := c.registerRPCService(cliCtx, keyManager); err != nil {
+		if err := c.registerRPCService(cliCtx); err != nil {
 			return err
 		}
 		if err := c.registerRPCGatewayService(cliCtx); err != nil {
@@ -267,7 +256,6 @@ func (c *ValidatorClient) initializeFromCLI(cliCtx *cli.Context) error {
 }
 
 func (c *ValidatorClient) initializeForWeb(cliCtx *cli.Context) error {
-	var keyManager keymanager.IKeymanager
 	var err error
 
 	// Read the wallet password file from the cli context.
@@ -284,14 +272,6 @@ func (c *ValidatorClient) initializeForWeb(cliCtx *cli.Context) error {
 	}
 	if w != nil {
 		c.wallet = w
-		log.WithFields(logrus.Fields{
-			"wallet":          w.AccountsDir(),
-			"keymanager-kind": w.KeymanagerKind().String(),
-		}).Info("Opened validator wallet")
-		keyManager, err = w.InitializeKeymanager(cliCtx.Context, accountsiface.InitKeymanagerConfig{ListenForChanges: true})
-		if err != nil {
-			return errors.Wrap(err, "could not read keymanager for wallet")
-		}
 	}
 	dataDir := cliCtx.String(flags.WalletDirFlag.Name)
 	if c.wallet != nil {
@@ -336,10 +316,10 @@ func (c *ValidatorClient) initializeForWeb(cliCtx *cli.Context) error {
 			return err
 		}
 	}
-	if err := c.registerValidatorService(keyManager); err != nil {
+	if err := c.registerValidatorService(); err != nil {
 		return err
 	}
-	if err := c.registerRPCService(cliCtx, keyManager); err != nil {
+	if err := c.registerRPCService(cliCtx); err != nil {
 		return err
 	}
 	if err := c.registerRPCGatewayService(cliCtx); err != nil {
@@ -374,9 +354,7 @@ func (c *ValidatorClient) registerPrometheusService(cliCtx *cli.Context) error {
 	return c.services.RegisterService(service)
 }
 
-func (c *ValidatorClient) registerValidatorService(
-	keyManager keymanager.IKeymanager,
-) error {
+func (c *ValidatorClient) registerValidatorService() error {
 	endpoint := c.cliCtx.String(flags.BeaconRPCProviderFlag.Name)
 	dataDir := c.cliCtx.String(cmd.DataDirFlag.Name)
 	logValidatorBalances := !c.cliCtx.Bool(flags.DisablePenaltyRewardLogFlag.Name)
@@ -399,7 +377,6 @@ func (c *ValidatorClient) registerValidatorService(
 	v, err := client.NewValidatorService(c.cliCtx.Context, &client.Config{
 		Endpoint:                   endpoint,
 		DataDir:                    dataDir,
-		KeyManager:                 keyManager,
 		LogValidatorBalances:       logValidatorBalances,
 		EmitAccountMetrics:         emitAccountMetrics,
 		CertFlag:                   cert,
@@ -421,7 +398,7 @@ func (c *ValidatorClient) registerValidatorService(
 	return c.services.RegisterService(v)
 }
 
-func (c *ValidatorClient) registerRPCService(cliCtx *cli.Context, km keymanager.IKeymanager) error {
+func (c *ValidatorClient) registerRPCService(cliCtx *cli.Context) error {
 	var vs *client.ValidatorService
 	if err := c.services.FetchService(&vs); err != nil {
 		return err
@@ -451,7 +428,6 @@ func (c *ValidatorClient) registerRPCService(cliCtx *cli.Context, km keymanager.
 		NodeGatewayEndpoint:      nodeGatewayEndpoint,
 		WalletDir:                walletDir,
 		Wallet:                   c.wallet,
-		Keymanager:               km,
 		ValidatorGatewayHost:     validatorGatewayHost,
 		ValidatorGatewayPort:     validatorGatewayPort,
 		ValidatorMonitoringHost:  validatorMonitoringHost,
