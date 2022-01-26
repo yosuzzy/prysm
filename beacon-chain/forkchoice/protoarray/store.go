@@ -599,13 +599,17 @@ func (s *Store) prune(ctx context.Context, finalizedRoot [32]byte) error {
 	}
 
 	// Iterate through existing nodes and adjust its parent/child indices with the newly pruned layout.
-	for i, node := range s.nodes {
+	for i := 0; i < len(s.nodes); i++ {
+		node := s.nodes[i]
 		if node.parent != NonExistentNode {
 			// If the node's parent is less than finalized index, set it to non existent.
 			if node.parent >= finalizedIndex {
 				node.parent -= finalizedIndex
 			} else {
-				node.parent = NonExistentNode
+				delete(s.nodesIndices, s.nodes[i].root)
+				s.updateNodesAfterRemoveBadNode(uint64(i), node.parent)
+				s.nodes = append(s.nodes[:i], s.nodes[i+1:]...)
+				continue
 			}
 		}
 		if node.bestChild != NonExistentNode {
@@ -627,6 +631,28 @@ func (s *Store) prune(ctx context.Context, finalizedRoot [32]byte) error {
 	prunedCount.Inc()
 
 	return nil
+}
+
+func (s *Store) updateNodesAfterRemoveBadNode(badIndex uint64, badParentIndex uint64) {
+	for i, node := range s.nodes[:badIndex] {
+		if node.bestChild > badIndex {
+			node.bestChild--
+		}
+		if node.bestDescendant > badIndex {
+			node.bestDescendant--
+		}
+		s.nodes[i] = node
+	}
+
+	for i, node := range s.nodes[badIndex+1:] {
+		if node.parent > badIndex {
+			node.parent--
+		}
+		node.bestChild--
+		node.bestDescendant--
+		s.nodes[i] = node
+	}
+
 }
 
 // leadsToViableHead returns true if the node or the best descendent of the node is viable for head.
