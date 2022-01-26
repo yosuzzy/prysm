@@ -10,6 +10,52 @@ import (
 	"github.com/prysmaticlabs/prysm/testing/require"
 )
 
+// This unit tests starts with a simple branch like this
+//
+//       - 1
+//     /
+// -- 0 -- 2
+//
+// And we finalize 1, the result has a disconnected graph containing 1 and 2.
+func TestStore_disconnectedBranch(t *testing.T) {
+	nodes := []*Node{
+		{
+			slot:           100,
+			bestChild:      1,
+			bestDescendant: 1,
+			root:           [32]byte{'0'},
+			parent:         NonExistentNode,
+		},
+		{
+			slot:           101,
+			root:           [32]byte{'1'},
+			bestChild:      NonExistentNode,
+			bestDescendant: NonExistentNode,
+			parent:         0,
+		},
+		{
+			slot:           101,
+			root:           [32]byte{'2'},
+			parent:         0,
+			bestChild:      NonExistentNode,
+			bestDescendant: NonExistentNode,
+		},
+	}
+	s := &Store{
+		pruneThreshold: 0,
+		nodes:          nodes,
+		nodesIndices: map[[32]byte]uint64{
+			[32]byte{'0'}: 0,
+			[32]byte{'1'}: 1,
+			[32]byte{'2'}: 2,
+		},
+	}
+	require.NoError(t, s.prune(context.Background(), [32]byte{'1'}))
+	require.Equal(t, len(s.nodes), 2)
+	require.Equal(t, s.nodes[0].parent, NonExistentNode)
+	require.Equal(t, s.nodes[1].parent, NonExistentNode)
+}
+
 func TestStore_PruneThreshold(t *testing.T) {
 	s := &Store{
 		pruneThreshold: defaultPruneThreshold,
