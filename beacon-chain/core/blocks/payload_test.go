@@ -10,6 +10,7 @@ import (
 	fieldparams "github.com/prysmaticlabs/prysm/config/fieldparams"
 	"github.com/prysmaticlabs/prysm/encoding/bytesutil"
 	"github.com/prysmaticlabs/prysm/encoding/ssz"
+	enginev1 "github.com/prysmaticlabs/prysm/proto/engine/v1"
 	ethpb "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
 	"github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1/wrapper"
 	"github.com/prysmaticlabs/prysm/testing/require"
@@ -171,7 +172,7 @@ func Test_MergeComplete(t *testing.T) {
 func Test_MergeBlock(t *testing.T) {
 	tests := []struct {
 		name    string
-		payload *ethpb.ExecutionPayload
+		payload *enginev1.ExecutionPayload
 		header  *ethpb.ExecutionPayloadHeader
 		want    bool
 	}{
@@ -352,7 +353,7 @@ func Test_MergeBlock(t *testing.T) {
 func Test_ExecutionEnabled(t *testing.T) {
 	tests := []struct {
 		name    string
-		payload *ethpb.ExecutionPayload
+		payload *enginev1.ExecutionPayload
 		header  *ethpb.ExecutionPayloadHeader
 		want    bool
 	}{
@@ -417,7 +418,7 @@ func Test_ExecutionEnabled(t *testing.T) {
 func Test_ValidatePayloadWhenMergeCompletes(t *testing.T) {
 	tests := []struct {
 		name    string
-		payload *ethpb.ExecutionPayload
+		payload *enginev1.ExecutionPayload
 		header  *ethpb.ExecutionPayloadHeader
 		err     error
 	}{
@@ -478,7 +479,7 @@ func Test_ValidatePayload(t *testing.T) {
 	require.NoError(t, err)
 	tests := []struct {
 		name    string
-		payload *ethpb.ExecutionPayload
+		payload *enginev1.ExecutionPayload
 		err     error
 	}{
 		{
@@ -526,7 +527,7 @@ func Test_ProcessPayload(t *testing.T) {
 	require.NoError(t, err)
 	tests := []struct {
 		name    string
-		payload *ethpb.ExecutionPayload
+		payload *enginev1.ExecutionPayload
 		err     error
 	}{
 		{

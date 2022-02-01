@@ -10,6 +10,7 @@ import (
 	fieldparams "github.com/prysmaticlabs/prysm/config/fieldparams"
 	"github.com/prysmaticlabs/prysm/encoding/bytesutil"
 	"github.com/prysmaticlabs/prysm/encoding/ssz"
+	enginev1 "github.com/prysmaticlabs/prysm/proto/engine/v1"
 	ethpb "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
 	"github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1/block"
 	"github.com/prysmaticlabs/prysm/time/slots"
@@ -77,7 +78,7 @@ func ExecutionEnabled(st state.BeaconState, blk block.BeaconBlockBody) (bool, er
 //    # Verify consistency of the parent hash with respect to the previous execution payload header
 //    if is_merge_complete(state):
 //        assert payload.parent_hash == state.latest_execution_payload_header.block_hash
-func ValidatePayloadWhenMergeCompletes(st state.BeaconState, payload *ethpb.ExecutionPayload) error {
+func ValidatePayloadWhenMergeCompletes(st state.BeaconState, payload *enginev1.ExecutionPayload) error {
 	complete, err := MergeComplete(st)
 	if err != nil {
 		return err
@@ -175,7 +176,7 @@ func ProcessPayload(st state.BeaconState, payload *ethpb.ExecutionPayload) (stat
 }
 
 // PayloadToHeader converts `payload` into execution payload header format.
-func PayloadToHeader(payload *ethpb.ExecutionPayload) (*ethpb.ExecutionPayloadHeader, error) {
+func PayloadToHeader(payload *enginev1.ExecutionPayload) (*ethpb.ExecutionPayloadHeader, error) {
 	txRoot, err := ssz.TransactionsRoot(payload.Transactions)
 	if err != nil {
 		return nil, err
