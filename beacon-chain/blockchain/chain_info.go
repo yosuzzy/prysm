@@ -6,6 +6,7 @@ import (
 
 	types "github.com/prysmaticlabs/eth2-types"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/helpers"
+	coreState "github.com/prysmaticlabs/prysm/beacon-chain/core/transition"
 	"github.com/prysmaticlabs/prysm/beacon-chain/forkchoice"
 	doublylinkedtree "github.com/prysmaticlabs/prysm/beacon-chain/forkchoice/doubly-linked-tree"
 	"github.com/prysmaticlabs/prysm/beacon-chain/forkchoice/protoarray"
@@ -202,7 +203,15 @@ func (s *Service) HeadValidatorsIndices(ctx context.Context, epoch types.Epoch) 
 	if !s.hasHeadState() {
 		return []types.ValidatorIndex{}, nil
 	}
-	return helpers.ActiveValidatorIndices(ctx, s.headState(ctx), epoch)
+	startSlot, err := slots.EpochStart(epoch)
+	if err != nil {
+		return nil, err
+	}
+	st, err := coreState.ProcessSlotsIfPossible(ctx, s.headState(ctx), startSlot)
+	if err != nil {
+		return nil, err
+	}
+	return helpers.ActiveValidatorIndices(ctx, st, epoch)
 }
 
 // HeadSeed returns the seed from the head view of a given epoch.
