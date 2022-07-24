@@ -780,6 +780,7 @@ func TestFillForkChoiceMissingBlocks_FinalizedSibling_DoublyLinkedTree(t *testin
 	err = service.fillInForkChoiceMissingBlocks(
 		context.Background(), wsb.Block(), beaconState.FinalizedCheckpoint(), beaconState.CurrentJustifiedCheckpoint())
 	require.ErrorIs(t, errNotDescendantOfFinalized, err)
+	require.Equal(t, true, IsInvalidBlock(err))
 }
 
 // blockTree1 constructs the following tree:
