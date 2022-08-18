@@ -6,27 +6,27 @@ import (
 	"testing"
 
 	"github.com/pkg/errors"
-	types "github.com/prysmaticlabs/eth2-types"
 	"github.com/prysmaticlabs/go-bitfield"
-	"github.com/prysmaticlabs/prysm/beacon-chain/core/altair"
-	"github.com/prysmaticlabs/prysm/beacon-chain/core/blocks"
-	"github.com/prysmaticlabs/prysm/beacon-chain/core/helpers"
-	"github.com/prysmaticlabs/prysm/beacon-chain/core/signing"
-	"github.com/prysmaticlabs/prysm/beacon-chain/core/time"
-	"github.com/prysmaticlabs/prysm/beacon-chain/core/transition"
-	"github.com/prysmaticlabs/prysm/beacon-chain/state"
-	"github.com/prysmaticlabs/prysm/beacon-chain/state/stateutil"
-	stateAltair "github.com/prysmaticlabs/prysm/beacon-chain/state/v2"
-	fieldparams "github.com/prysmaticlabs/prysm/config/fieldparams"
-	"github.com/prysmaticlabs/prysm/config/params"
-	"github.com/prysmaticlabs/prysm/crypto/bls"
-	"github.com/prysmaticlabs/prysm/encoding/bytesutil"
-	ethpb "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
-	"github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1/wrapper"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/core/altair"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/core/blocks"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/core/helpers"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/core/signing"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/core/time"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/core/transition"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/state"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/state/stateutil"
+	stateAltair "github.com/prysmaticlabs/prysm/v3/beacon-chain/state/v2"
+	fieldparams "github.com/prysmaticlabs/prysm/v3/config/fieldparams"
+	"github.com/prysmaticlabs/prysm/v3/config/params"
+	consensusblocks "github.com/prysmaticlabs/prysm/v3/consensus-types/blocks"
+	types "github.com/prysmaticlabs/prysm/v3/consensus-types/primitives"
+	"github.com/prysmaticlabs/prysm/v3/crypto/bls"
+	"github.com/prysmaticlabs/prysm/v3/encoding/bytesutil"
+	ethpb "github.com/prysmaticlabs/prysm/v3/proto/prysm/v1alpha1"
 )
 
 // DeterministicGenesisStateAltair returns a genesis state in hard fork 1 format made using the deterministic deposits.
-func DeterministicGenesisStateAltair(t testing.TB, numValidators uint64) (state.BeaconStateAltair, []bls.SecretKey) {
+func DeterministicGenesisStateAltair(t testing.TB, numValidators uint64) (state.BeaconState, []bls.SecretKey) {
 	deposits, privKeys, err := DeterministicDepositsAndKeys(numValidators)
 	if err != nil {
 		t.Fatal(errors.Wrapf(err, "failed to get %d deposits", numValidators))
@@ -44,7 +44,7 @@ func DeterministicGenesisStateAltair(t testing.TB, numValidators uint64) (state.
 }
 
 // GenesisBeaconState returns the genesis beacon state.
-func GenesisBeaconState(ctx context.Context, deposits []*ethpb.Deposit, genesisTime uint64, eth1Data *ethpb.Eth1Data) (state.BeaconStateAltair, error) {
+func GenesisBeaconState(ctx context.Context, deposits []*ethpb.Deposit, genesisTime uint64, eth1Data *ethpb.Eth1Data) (state.BeaconState, error) {
 	st, err := emptyGenesisState()
 	if err != nil {
 		return nil, err
@@ -67,9 +67,9 @@ func GenesisBeaconState(ctx context.Context, deposits []*ethpb.Deposit, genesisT
 // processPreGenesisDeposits processes a deposit for the beacon state Altair before chain start.
 func processPreGenesisDeposits(
 	ctx context.Context,
-	beaconState state.BeaconStateAltair,
+	beaconState state.BeaconState,
 	deposits []*ethpb.Deposit,
-) (state.BeaconStateAltair, error) {
+) (state.BeaconState, error) {
 	var err error
 	beaconState, err = altair.ProcessDeposits(ctx, beaconState, deposits)
 	if err != nil {
@@ -82,7 +82,7 @@ func processPreGenesisDeposits(
 	return beaconState, nil
 }
 
-func buildGenesisBeaconState(genesisTime uint64, preState state.BeaconStateAltair, eth1Data *ethpb.Eth1Data) (state.BeaconStateAltair, error) {
+func buildGenesisBeaconState(genesisTime uint64, preState state.BeaconState, eth1Data *ethpb.Eth1Data) (state.BeaconState, error) {
 	if eth1Data == nil {
 		return nil, errors.New("no eth1data provided for genesis state")
 	}
@@ -216,7 +216,7 @@ func buildGenesisBeaconState(genesisTime uint64, preState state.BeaconStateAltai
 	return stateAltair.InitializeFromProto(st)
 }
 
-func emptyGenesisState() (state.BeaconStateAltair, error) {
+func emptyGenesisState() (state.BeaconState, error) {
 	st := &ethpb.BeaconStateAltair{
 		// Misc fields.
 		Slot: 0,
@@ -273,12 +273,12 @@ func NewBeaconBlockAltair() *ethpb.SignedBeaconBlockAltair {
 
 // BlockSignatureAltair calculates the post-state root of the block and returns the signature.
 func BlockSignatureAltair(
-	bState state.BeaconStateAltair,
+	bState state.BeaconState,
 	block *ethpb.BeaconBlockAltair,
 	privKeys []bls.SecretKey,
 ) (bls.Signature, error) {
 	var err error
-	wsb, err := wrapper.WrappedSignedBeaconBlock(&ethpb.SignedBeaconBlockAltair{Block: block})
+	wsb, err := consensusblocks.NewSignedBeaconBlock(&ethpb.SignedBeaconBlockAltair{Block: block})
 	if err != nil {
 		return nil, err
 	}
@@ -311,7 +311,7 @@ func BlockSignatureAltair(
 	return privKeys[proposerIdx].Sign(blockRoot[:]), nil
 }
 
-// GenerateFullBlockAltair generates a fully valid block with the requested parameters.
+// GenerateFullBlockAltair generates a fully valid Altair block with the requested parameters.
 // Use BlockGenConfig to declare the conditions you would like the block generated under.
 func GenerateFullBlockAltair(
 	bState state.BeaconState,
@@ -388,26 +388,44 @@ func GenerateFullBlockAltair(
 		return nil, err
 	}
 
+	var newSyncAggregate *ethpb.SyncAggregate
+	if conf.FullSyncAggregate {
+		newSyncAggregate, err = generateSyncAggregate(bState, privs, parentRoot)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed generating syncAggregate")
+		}
+	} else {
+		var syncCommitteeBits []byte
+		currSize := new(ethpb.SyncAggregate).SyncCommitteeBits.Len()
+		switch currSize {
+		case 512:
+			syncCommitteeBits = bitfield.NewBitvector512()
+		case 32:
+			syncCommitteeBits = bitfield.NewBitvector32()
+		default:
+			return nil, errors.New("invalid bit vector size")
+		}
+		newSyncAggregate = &ethpb.SyncAggregate{
+			SyncCommitteeBits:      syncCommitteeBits,
+			SyncCommitteeSignature: append([]byte{0xC0}, make([]byte, 95)...),
+		}
+	}
+
 	if slot == currentSlot {
 		slot = currentSlot + 1
 	}
 
-	syncAgg, err := generateSyncAggregate(bState, privs, parentRoot)
+	stCopy := bState.Copy()
+	stCopy, err = transition.ProcessSlots(context.Background(), stCopy, slot)
+	if err != nil {
+		return nil, err
+	}
+	reveal, err := RandaoReveal(stCopy, time.CurrentEpoch(stCopy), privs)
 	if err != nil {
 		return nil, err
 	}
 
-	// Temporarily incrementing the beacon state slot here since BeaconProposerIndex is a
-	// function deterministic on beacon state slot.
-	if err := bState.SetSlot(slot); err != nil {
-		return nil, err
-	}
-	reveal, err := RandaoReveal(bState, time.CurrentEpoch(bState), privs)
-	if err != nil {
-		return nil, err
-	}
-
-	idx, err := helpers.BeaconProposerIndex(ctx, bState)
+	idx, err := helpers.BeaconProposerIndex(ctx, stCopy)
 	if err != nil {
 		return nil, err
 	}
@@ -424,15 +442,12 @@ func GenerateFullBlockAltair(
 			Attestations:      atts,
 			VoluntaryExits:    exits,
 			Deposits:          newDeposits,
-			Graffiti:          make([]byte, 32),
-			SyncAggregate:     syncAgg,
+			Graffiti:          make([]byte, fieldparams.RootLength),
+			SyncAggregate:     newSyncAggregate,
 		},
 	}
-	if err := bState.SetSlot(currentSlot); err != nil {
-		return nil, err
-	}
 
-	signature, err := BlockSignatureAltair(bState, block, privs)
+	signature, err := BlockSignature(bState, block, privs)
 	if err != nil {
 		return nil, err
 	}

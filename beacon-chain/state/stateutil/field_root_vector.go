@@ -2,11 +2,11 @@ package stateutil
 
 import (
 	"github.com/pkg/errors"
-	"github.com/prysmaticlabs/prysm/crypto/hash"
-	"github.com/prysmaticlabs/prysm/encoding/ssz"
+	"github.com/prysmaticlabs/prysm/v3/crypto/hash"
+	"github.com/prysmaticlabs/prysm/v3/encoding/ssz"
 )
 
-func arraysRoot(input [][]byte, length uint64) ([32]byte, error) {
+func ArraysRoot(input [][]byte, length uint64) ([32]byte, error) {
 	hashFunc := hash.CustomSHA256Hasher()
 
 	leaves := make([][32]byte, length)

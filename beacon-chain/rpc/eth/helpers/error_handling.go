@@ -3,8 +3,8 @@ package helpers
 import (
 	"errors"
 
-	"github.com/prysmaticlabs/prysm/beacon-chain/rpc/statefetcher"
-	"github.com/prysmaticlabs/prysm/beacon-chain/state/stategen"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/rpc/statefetcher"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/state/stategen"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -33,16 +33,4 @@ type IndexedVerificationFailure struct {
 type SingleIndexedVerificationFailure struct {
 	Index   int    `json:"index"`
 	Message string `json:"message"`
-}
-
-// SyncDetails contain details about sync status.
-type SyncDetails struct {
-	HeadSlot     string `json:"head_slot"`
-	SyncDistance string `json:"sync_distance"`
-	IsSyncing    bool   `json:"is_syncing"`
-}
-
-// SyncDetailsContainer is a wrapper for SyncDetails.
-type SyncDetailsContainer struct {
-	SyncDetails *SyncDetails `json:"sync_details"`
 }

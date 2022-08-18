@@ -7,23 +7,24 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"testing"
 
-	"github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1/wrapper"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/state"
+	"github.com/prysmaticlabs/prysm/v3/consensus-types/blocks"
+	blocktest "github.com/prysmaticlabs/prysm/v3/consensus-types/blocks/testing"
+	"github.com/prysmaticlabs/prysm/v3/network/forks"
+	ethpb "github.com/prysmaticlabs/prysm/v3/proto/prysm/v1alpha1"
+	"github.com/prysmaticlabs/prysm/v3/testing/util"
+	"github.com/prysmaticlabs/prysm/v3/time/slots"
 
-	"github.com/prysmaticlabs/prysm/beacon-chain/state"
-	"github.com/prysmaticlabs/prysm/network/forks"
-	ethpb "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
-	"github.com/prysmaticlabs/prysm/testing/util"
-	"github.com/prysmaticlabs/prysm/time/slots"
-
-	types "github.com/prysmaticlabs/eth2-types"
-	"github.com/prysmaticlabs/prysm/config/params"
-	"github.com/prysmaticlabs/prysm/encoding/ssz/detect"
-	"github.com/prysmaticlabs/prysm/runtime/version"
+	"github.com/prysmaticlabs/prysm/v3/config/params"
+	types "github.com/prysmaticlabs/prysm/v3/consensus-types/primitives"
+	"github.com/prysmaticlabs/prysm/v3/encoding/ssz/detect"
+	"github.com/prysmaticlabs/prysm/v3/runtime/version"
 
 	"github.com/pkg/errors"
-	"github.com/prysmaticlabs/prysm/testing/require"
+	"github.com/prysmaticlabs/prysm/v3/testing/require"
 )
 
 type testRT struct {
@@ -66,9 +67,8 @@ func TestMarshalToEnvelope(t *testing.T) {
 
 func TestFallbackVersionCheck(t *testing.T) {
 	c := &Client{
-		hc:     &http.Client{},
-		host:   "localhost:3500",
-		scheme: "http",
+		hc:      &http.Client{},
+		baseURL: &url.URL{Host: "localhost:3500", Scheme: "http"},
 	}
 	c.hc.Transport = &testRT{rt: func(req *http.Request) (*http.Response, error) {
 		res := &http.Response{Request: req}
@@ -93,8 +93,8 @@ func TestFallbackVersionCheck(t *testing.T) {
 	}}
 
 	ctx := context.Background()
-	_, err := DownloadOriginData(ctx, c)
-	require.ErrorIs(t, err, ErrUnsupportedPrysmCheckpointVersion)
+	_, err := ComputeWeakSubjectivityCheckpoint(ctx, c)
+	require.ErrorIs(t, err, errUnsupportedPrysmCheckpointVersion)
 }
 
 func TestFname(t *testing.T) {
@@ -120,9 +120,9 @@ func TestFname(t *testing.T) {
 	require.Equal(t, expected, actual)
 }
 
-func TestDownloadOriginData(t *testing.T) {
+func TestDownloadWeakSubjectivityCheckpoint(t *testing.T) {
 	ctx := context.Background()
-	cfg := params.MainnetConfig()
+	cfg := params.MainnetConfig().Copy()
 
 	epoch := cfg.AltairForkEpoch - 1
 	// set up checkpoint state, using the epoch that will be computed as the ws checkpoint state based on the head state
@@ -134,10 +134,14 @@ func TestDownloadOriginData(t *testing.T) {
 	require.NoError(t, wst.SetFork(fork))
 
 	// set up checkpoint block
-	b, err := wrapper.WrappedSignedBeaconBlock(util.NewBeaconBlock())
-	require.NoError(t, wrapper.SetBlockParentRoot(b, cfg.ZeroHash))
-	require.NoError(t, wrapper.SetBlockSlot(b, wSlot))
-	require.NoError(t, wrapper.SetProposerIndex(b, 0))
+	b, err := blocks.NewSignedBeaconBlock(util.NewBeaconBlock())
+	require.NoError(t, err)
+	b, err = blocktest.SetBlockParentRoot(b, cfg.ZeroHash)
+	require.NoError(t, err)
+	b, err = blocktest.SetBlockSlot(b, wSlot)
+	require.NoError(t, err)
+	b, err = blocktest.SetProposerIndex(b, 0)
+	require.NoError(t, err)
 
 	// set up state header pointing at checkpoint block - this is how the block is downloaded by root
 	header, err := b.Header()
@@ -151,7 +155,8 @@ func TestDownloadOriginData(t *testing.T) {
 	wRoot, err := wst.HashTreeRoot(ctx)
 	require.NoError(t, err)
 
-	require.NoError(t, wrapper.SetBlockStateRoot(b, wRoot))
+	b, err = blocktest.SetBlockStateRoot(b, wRoot)
+	require.NoError(t, err)
 	serBlock, err := b.MarshalSSZ()
 	require.NoError(t, err)
 	bRoot, err := b.Block().HashTreeRoot()
@@ -200,24 +205,19 @@ func TestDownloadOriginData(t *testing.T) {
 		}},
 	}
 	c := &Client{
-		hc:     hc,
-		host:   "localhost:3500",
-		scheme: "http",
+		hc:      hc,
+		baseURL: &url.URL{Host: "localhost:3500", Scheme: "http"},
 	}
 
-	od, err := DownloadOriginData(ctx, c)
+	wsd, err := ComputeWeakSubjectivityCheckpoint(ctx, c)
 	require.NoError(t, err)
-	require.Equal(t, expectedWSD.Epoch, od.wsd.Epoch)
-	require.Equal(t, expectedWSD.StateRoot, od.wsd.StateRoot)
-	require.Equal(t, expectedWSD.BlockRoot, od.wsd.BlockRoot)
-	require.DeepEqual(t, wsSerialized, od.sb)
-	require.DeepEqual(t, serBlock, od.bb)
-	require.DeepEqual(t, wst.Fork().CurrentVersion, od.cf.Version[:])
-	require.DeepEqual(t, version.Phase0, od.cf.Fork)
+	require.Equal(t, expectedWSD.Epoch, wsd.Epoch)
+	require.Equal(t, expectedWSD.StateRoot, wsd.StateRoot)
+	require.Equal(t, expectedWSD.BlockRoot, wsd.BlockRoot)
 }
 
-// runs downloadBackwardsCompatible directly
-// and via DownloadOriginData with a round tripper that triggers the backwards compatible code path
+// runs computeBackwardsCompatible directly
+// and via ComputeWeakSubjectivityCheckpoint with a round tripper that triggers the backwards compatible code path
 func TestDownloadBackwardsCompatibleCombined(t *testing.T) {
 	ctx := context.Background()
 	cfg := params.MainnetConfig()
@@ -235,10 +235,14 @@ func TestDownloadBackwardsCompatibleCombined(t *testing.T) {
 	require.NoError(t, wst.SetFork(fork))
 
 	// set up checkpoint block
-	b, err := wrapper.WrappedSignedBeaconBlock(util.NewBeaconBlock())
-	require.NoError(t, wrapper.SetBlockParentRoot(b, cfg.ZeroHash))
-	require.NoError(t, wrapper.SetBlockSlot(b, wSlot))
-	require.NoError(t, wrapper.SetProposerIndex(b, 0))
+	b, err := blocks.NewSignedBeaconBlock(util.NewBeaconBlock())
+	require.NoError(t, err)
+	b, err = blocktest.SetBlockParentRoot(b, cfg.ZeroHash)
+	require.NoError(t, err)
+	b, err = blocktest.SetBlockSlot(b, wSlot)
+	require.NoError(t, err)
+	b, err = blocktest.SetProposerIndex(b, 0)
+	require.NoError(t, err)
 
 	// set up state header pointing at checkpoint block - this is how the block is downloaded by root
 	header, err := b.Header()
@@ -252,7 +256,8 @@ func TestDownloadBackwardsCompatibleCombined(t *testing.T) {
 	wRoot, err := wst.HashTreeRoot(ctx)
 	require.NoError(t, err)
 
-	require.NoError(t, wrapper.SetBlockStateRoot(b, wRoot))
+	b, err = blocktest.SetBlockStateRoot(b, wRoot)
+	require.NoError(t, err)
 	serBlock, err := b.MarshalSSZ()
 	require.NoError(t, err)
 	bRoot, err := b.Block().HashTreeRoot()
@@ -294,21 +299,16 @@ func TestDownloadBackwardsCompatibleCombined(t *testing.T) {
 		}},
 	}
 	c := &Client{
-		hc:     hc,
-		host:   "localhost:3500",
-		scheme: "http",
+		hc:      hc,
+		baseURL: &url.URL{Host: "localhost:3500", Scheme: "http"},
 	}
 
-	odPub, err := DownloadOriginData(ctx, c)
+	wsPub, err := ComputeWeakSubjectivityCheckpoint(ctx, c)
 	require.NoError(t, err)
 
-	odPriv, err := downloadBackwardsCompatible(ctx, c)
+	wsPriv, err := computeBackwardsCompatible(ctx, c)
 	require.NoError(t, err)
-	require.DeepEqual(t, odPriv.wsd, odPub.wsd)
-	require.DeepEqual(t, odPriv.sb, odPub.sb)
-	require.DeepEqual(t, odPriv.bb, odPub.bb)
-	require.DeepEqual(t, odPriv.cf.Fork, odPub.cf.Fork)
-	require.DeepEqual(t, odPriv.cf.Version, odPub.cf.Version)
+	require.DeepEqual(t, wsPriv, wsPub)
 }
 
 func TestGetWeakSubjectivityEpochFromHead(t *testing.T) {
@@ -327,9 +327,8 @@ func TestGetWeakSubjectivityEpochFromHead(t *testing.T) {
 		}},
 	}
 	c := &Client{
-		hc:     hc,
-		host:   "localhost:3500",
-		scheme: "http",
+		hc:      hc,
+		baseURL: &url.URL{Host: "localhost:3500", Scheme: "http"},
 	}
 	actualEpoch, err := getWeakSubjectivityEpochFromHead(context.Background(), c)
 	require.NoError(t, err)
@@ -404,4 +403,100 @@ func populateValidators(cfg *params.BeaconChainConfig, st state.BeaconState, val
 	}
 
 	return nil
+}
+
+func TestDownloadFinalizedData(t *testing.T) {
+	ctx := context.Background()
+	cfg := params.MainnetConfig().Copy()
+
+	// avoid the altair zone because genesis tests are easier to set up
+	epoch := cfg.AltairForkEpoch - 1
+	// set up checkpoint state, using the epoch that will be computed as the ws checkpoint state based on the head state
+	slot, err := slots.EpochStart(epoch)
+	require.NoError(t, err)
+	st, err := util.NewBeaconState()
+	require.NoError(t, err)
+	fork, err := forkForEpoch(cfg, epoch)
+	require.NoError(t, st.SetFork(fork))
+
+	// set up checkpoint block
+	b, err := blocks.NewSignedBeaconBlock(util.NewBeaconBlock())
+	require.NoError(t, err)
+	b, err = blocktest.SetBlockParentRoot(b, cfg.ZeroHash)
+	require.NoError(t, err)
+	b, err = blocktest.SetBlockSlot(b, slot)
+	require.NoError(t, err)
+	b, err = blocktest.SetProposerIndex(b, 0)
+	require.NoError(t, err)
+
+	// set up state header pointing at checkpoint block - this is how the block is downloaded by root
+	header, err := b.Header()
+	require.NoError(t, err)
+	require.NoError(t, st.SetLatestBlockHeader(header.Header))
+
+	// order of operations can be confusing here:
+	// - when computing the state root, make sure block header is complete, EXCEPT the state root should be zero-value
+	// - before computing the block root (to match the request route), the block should include the state root
+	//   *computed from the state with a header that does not have a state root set yet*
+	sr, err := st.HashTreeRoot(ctx)
+	require.NoError(t, err)
+
+	b, err = blocktest.SetBlockStateRoot(b, sr)
+	require.NoError(t, err)
+	mb, err := b.MarshalSSZ()
+	require.NoError(t, err)
+	br, err := b.Block().HashTreeRoot()
+	require.NoError(t, err)
+
+	ms, err := st.MarshalSSZ()
+	require.NoError(t, err)
+
+	hc := &http.Client{
+		Transport: &testRT{rt: func(req *http.Request) (*http.Response, error) {
+			res := &http.Response{Request: req}
+			switch req.URL.Path {
+			case renderGetStatePath(IdFinalized):
+				res.StatusCode = http.StatusOK
+				res.Body = io.NopCloser(bytes.NewBuffer(ms))
+			case renderGetBlockPath(IdFromRoot(br)):
+				res.StatusCode = http.StatusOK
+				res.Body = io.NopCloser(bytes.NewBuffer(mb))
+			default:
+				res.StatusCode = http.StatusInternalServerError
+				res.Body = io.NopCloser(bytes.NewBufferString(""))
+			}
+
+			return res, nil
+		}},
+	}
+	c := &Client{
+		hc:      hc,
+		baseURL: &url.URL{Host: "localhost:3500", Scheme: "http"},
+	}
+
+	// sanity check before we go through checkpoint
+	// make sure we can download the state and unmarshal it with the VersionedUnmarshaler
+	sb, err := c.GetState(ctx, IdFinalized)
+	require.NoError(t, err)
+	require.Equal(t, true, bytes.Equal(sb, ms))
+	vu, err := detect.FromState(sb)
+	require.NoError(t, err)
+	us, err := vu.UnmarshalBeaconState(sb)
+	require.NoError(t, err)
+	ushtr, err := us.HashTreeRoot(ctx)
+	require.NoError(t, err)
+	require.Equal(t, sr, ushtr)
+
+	expected := &OriginData{
+		sb: ms,
+		bb: mb,
+		br: br,
+		sr: sr,
+	}
+	od, err := DownloadFinalizedData(ctx, c)
+	require.NoError(t, err)
+	require.Equal(t, true, bytes.Equal(expected.sb, od.sb))
+	require.Equal(t, true, bytes.Equal(expected.bb, od.bb))
+	require.Equal(t, expected.br, od.br)
+	require.Equal(t, expected.sr, od.sr)
 }

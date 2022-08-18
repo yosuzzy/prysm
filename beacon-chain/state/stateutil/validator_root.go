@@ -4,11 +4,11 @@ import (
 	"encoding/binary"
 
 	"github.com/pkg/errors"
-	fieldparams "github.com/prysmaticlabs/prysm/config/fieldparams"
-	"github.com/prysmaticlabs/prysm/crypto/hash"
-	"github.com/prysmaticlabs/prysm/encoding/bytesutil"
-	"github.com/prysmaticlabs/prysm/encoding/ssz"
-	ethpb "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
+	fieldparams "github.com/prysmaticlabs/prysm/v3/config/fieldparams"
+	"github.com/prysmaticlabs/prysm/v3/crypto/hash"
+	"github.com/prysmaticlabs/prysm/v3/encoding/bytesutil"
+	"github.com/prysmaticlabs/prysm/v3/encoding/ssz"
+	ethpb "github.com/prysmaticlabs/prysm/v3/proto/prysm/v1alpha1"
 )
 
 // ValidatorRootWithHasher describes a method from which the hash tree root
@@ -64,21 +64,11 @@ func ValidatorFieldRoots(hasher ssz.HashFn, validator *ethpb.Validator) ([][32]b
 // a list of uint64 and mixed with registry limit.
 func Uint64ListRootWithRegistryLimit(balances []uint64) ([32]byte, error) {
 	hasher := hash.CustomSHA256Hasher()
-	balancesMarshaling := make([][]byte, 0, len(balances))
-	for i := 0; i < len(balances); i++ {
-		balanceBuf := make([]byte, 8)
-		binary.LittleEndian.PutUint64(balanceBuf, balances[i])
-		balancesMarshaling = append(balancesMarshaling, balanceBuf)
-	}
-	balancesChunks, err := ssz.PackByChunk(balancesMarshaling)
+	balancesChunks, err := PackUint64IntoChunks(balances)
 	if err != nil {
 		return [32]byte{}, errors.Wrap(err, "could not pack balances into chunks")
 	}
-	maxBalCap := uint64(fieldparams.ValidatorRegistryLimit)
-	elemSize := uint64(8)
-	balLimit := (maxBalCap*elemSize + 31) / 32
-
-	balancesRootsRoot, err := ssz.BitwiseMerkleize(hasher, balancesChunks, uint64(len(balancesChunks)), balLimit)
+	balancesRootsRoot, err := ssz.BitwiseMerkleize(hasher, balancesChunks, uint64(len(balancesChunks)), ValidatorLimitForBalancesChunks())
 	if err != nil {
 		return [32]byte{}, errors.Wrap(err, "could not compute balances merkleization")
 	}
@@ -86,4 +76,45 @@ func Uint64ListRootWithRegistryLimit(balances []uint64) ([32]byte, error) {
 	balancesLengthRoot := make([]byte, 32)
 	binary.LittleEndian.PutUint64(balancesLengthRoot, uint64(len(balances)))
 	return ssz.MixInLength(balancesRootsRoot, balancesLengthRoot), nil
+}
+
+// ValidatorLimitForBalancesChunks returns the limit of validators after going through the chunking process.
+func ValidatorLimitForBalancesChunks() uint64 {
+	maxValidatorLimit := uint64(fieldparams.ValidatorRegistryLimit)
+	bytesInUint64 := uint64(8)
+	return (maxValidatorLimit*bytesInUint64 + 31) / 32 // round to nearest chunk
+}
+
+// PackUint64IntoChunks packs a list of uint64 values into 32 byte roots.
+func PackUint64IntoChunks(vals []uint64) ([][32]byte, error) {
+	// Initialize how many uint64 values we can pack
+	// into a single chunk(32 bytes). Each uint64 value
+	// would take up 8 bytes.
+	numOfElems := 4
+	sizeOfElem := 32 / numOfElems
+	// Determine total number of chunks to be
+	// allocated to provided list of unsigned
+	// 64-bit integers.
+	numOfChunks := len(vals) / numOfElems
+	// Add an extra chunk if the list size
+	// is not a perfect multiple of the number
+	// of elements.
+	if len(vals)%numOfElems != 0 {
+		numOfChunks++
+	}
+	chunkList := make([][32]byte, numOfChunks)
+	for idx, b := range vals {
+		// In order to determine how to pack in the uint64 value by index into
+		// our chunk list we need to determine a few things.
+		// 1) The chunk which the particular uint64 value corresponds to.
+		// 2) The position of the value in the chunk itself.
+		//
+		// Once we have determined these 2 values we can simply find the correct
+		// section of contiguous bytes to insert the value in the chunk.
+		chunkIdx := idx / numOfElems
+		idxInChunk := idx % numOfElems
+		chunkPos := idxInChunk * sizeOfElem
+		binary.LittleEndian.PutUint64(chunkList[chunkIdx][chunkPos:chunkPos+sizeOfElem], b)
+	}
+	return chunkList, nil
 }

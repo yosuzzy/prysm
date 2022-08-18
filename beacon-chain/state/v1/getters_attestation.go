@@ -1,13 +1,13 @@
 package v1
 
 import (
-	ethpb "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
+	ethpb "github.com/prysmaticlabs/prysm/v3/proto/prysm/v1alpha1"
 )
 
 // PreviousEpochAttestations corresponding to blocks on the beacon chain.
 func (b *BeaconState) PreviousEpochAttestations() ([]*ethpb.PendingAttestation, error) {
 	if !b.hasInnerState() {
-		return nil, nil
+		return nil, ErrNilInnerState
 	}
 	if b.state.PreviousEpochAttestations == nil {
 		return nil, nil
@@ -32,7 +32,7 @@ func (b *BeaconState) previousEpochAttestations() []*ethpb.PendingAttestation {
 // CurrentEpochAttestations corresponding to blocks on the beacon chain.
 func (b *BeaconState) CurrentEpochAttestations() ([]*ethpb.PendingAttestation, error) {
 	if !b.hasInnerState() {
-		return nil, nil
+		return nil, ErrNilInnerState
 	}
 	if b.state.CurrentEpochAttestations == nil {
 		return nil, nil

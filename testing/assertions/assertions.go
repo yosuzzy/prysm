@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/d4l3k/messagediff"
-	"github.com/prysmaticlabs/prysm/encoding/ssz/equality"
+	"github.com/prysmaticlabs/prysm/v3/encoding/ssz/equality"
 	"github.com/sirupsen/logrus/hooks/test"
 	"google.golang.org/protobuf/proto"
 )
@@ -91,7 +91,7 @@ func NoError(loggerFn assertionLoggerFn, err error, msg ...interface{}) {
 // If any error in the chain matches target, the assertion will pass.
 func ErrorIs(loggerFn assertionLoggerFn, err, target error, msg ...interface{}) {
 	if !errors.Is(err, target) {
-		errMsg := parseMsg(fmt.Sprintf("error %s not in chain", target), msg...)
+		errMsg := parseMsg(fmt.Sprintf("error %s", target), msg...)
 		_, file, line, _ := runtime.Caller(2)
 		loggerFn("%s:%d %s: %v", filepath.Base(file), line, errMsg, err)
 	}

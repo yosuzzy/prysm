@@ -1,21 +1,21 @@
 package execution_test
 
 import (
-	"context"
 	"testing"
 
-	"github.com/prysmaticlabs/prysm/beacon-chain/core/execution"
-	"github.com/prysmaticlabs/prysm/beacon-chain/core/time"
-	"github.com/prysmaticlabs/prysm/config/params"
-	ethpb "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
-	"github.com/prysmaticlabs/prysm/testing/require"
-	"github.com/prysmaticlabs/prysm/testing/util"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/core/execution"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/core/time"
+	"github.com/prysmaticlabs/prysm/v3/config/params"
+	enginev1 "github.com/prysmaticlabs/prysm/v3/proto/engine/v1"
+	ethpb "github.com/prysmaticlabs/prysm/v3/proto/prysm/v1alpha1"
+	"github.com/prysmaticlabs/prysm/v3/testing/require"
+	"github.com/prysmaticlabs/prysm/v3/testing/util"
 )
 
 func TestUpgradeToBellatrix(t *testing.T) {
 	st, _ := util.DeterministicGenesisStateAltair(t, params.BeaconConfig().MaxValidatorsPerCommittee)
 	preForkState := st.Copy()
-	mSt, err := execution.UpgradeToBellatrix(context.Background(), st)
+	mSt, err := execution.UpgradeToBellatrix(st)
 	require.NoError(t, err)
 
 	require.Equal(t, preForkState.GenesisTime(), mSt.GenesisTime())
@@ -61,11 +61,11 @@ func TestUpgradeToBellatrix(t *testing.T) {
 
 	header, err := mSt.LatestExecutionPayloadHeader()
 	require.NoError(t, err)
-	wanted := &ethpb.ExecutionPayloadHeader{
+	wanted := &enginev1.ExecutionPayloadHeader{
 		ParentHash:       make([]byte, 32),
 		FeeRecipient:     make([]byte, 20),
 		StateRoot:        make([]byte, 32),
-		ReceiptRoot:      make([]byte, 32),
+		ReceiptsRoot:     make([]byte, 32),
 		LogsBloom:        make([]byte, 256),
 		PrevRandao:       make([]byte, 32),
 		BlockNumber:      0,

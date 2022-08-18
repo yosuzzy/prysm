@@ -4,12 +4,12 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io/ioutil"
 	"math/big"
 	"os"
 	"os/exec"
 	"path"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/bazelbuild/rules_go/go/tools/bazel"
@@ -18,13 +18,17 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/pkg/errors"
-	"github.com/prysmaticlabs/prysm/config/params"
-	contracts "github.com/prysmaticlabs/prysm/contracts/deposit/mock"
-	io "github.com/prysmaticlabs/prysm/io/file"
-	"github.com/prysmaticlabs/prysm/testing/endtoend/helpers"
-	e2e "github.com/prysmaticlabs/prysm/testing/endtoend/params"
-	e2etypes "github.com/prysmaticlabs/prysm/testing/endtoend/types"
+	"github.com/prysmaticlabs/prysm/v3/config/params"
+	contracts "github.com/prysmaticlabs/prysm/v3/contracts/deposit/mock"
+	io "github.com/prysmaticlabs/prysm/v3/io/file"
+	"github.com/prysmaticlabs/prysm/v3/testing/endtoend/helpers"
+	e2e "github.com/prysmaticlabs/prysm/v3/testing/endtoend/params"
+	e2etypes "github.com/prysmaticlabs/prysm/v3/testing/endtoend/types"
 	log "github.com/sirupsen/logrus"
+)
+
+const (
+	EthAddress = "0x878705ba3f8bc32fcf7f4caa1a35e72af65cf766"
 )
 
 // Miner represents an ETH1 node which mines blocks.
@@ -34,6 +38,7 @@ type Miner struct {
 	bootstrapEnr string
 	enr          string
 	keystorePath string
+	cmd          *exec.Cmd
 }
 
 // NewMiner creates and returns an ETH1 node miner.
@@ -91,8 +96,8 @@ func (m *Miner) Start(ctx context.Context) error {
 		ctx,
 		binaryPath,
 		"init",
-		genesisDstPath+"/genesis.json",
-		fmt.Sprintf("--datadir=%s", eth1Path)) // #nosec G204 -- Safe
+		fmt.Sprintf("--datadir=%s", eth1Path),
+		genesisDstPath+"/genesis.json") // #nosec G204 -- Safe
 	initFile, err := helpers.DeleteAndCreateFile(e2e.TestParams.LogPath, "eth1-init_miner.log")
 	if err != nil {
 		return err
@@ -109,22 +114,26 @@ func (m *Miner) Start(ctx context.Context) error {
 		fmt.Sprintf("--datadir=%s", eth1Path),
 		fmt.Sprintf("--http.port=%d", e2e.TestParams.Ports.Eth1RPCPort),
 		fmt.Sprintf("--ws.port=%d", e2e.TestParams.Ports.Eth1WSPort),
+		fmt.Sprintf("--authrpc.port=%d", e2e.TestParams.Ports.Eth1AuthRPCPort),
 		fmt.Sprintf("--bootnodes=%s", m.bootstrapEnr),
 		fmt.Sprintf("--port=%d", e2e.TestParams.Ports.Eth1Port),
 		fmt.Sprintf("--networkid=%d", NetworkId),
 		"--http",
+		"--http.api=engine,net,eth",
 		"--http.addr=127.0.0.1",
 		"--http.corsdomain=\"*\"",
 		"--http.vhosts=\"*\"",
 		"--rpc.allow-unprotected-txs",
 		"--ws",
+		"--ws.api=net,eth,engine",
 		"--ws.addr=127.0.0.1",
 		"--ws.origins=\"*\"",
 		"--ipcdisable",
 		"--verbosity=4",
 		"--mine",
-		"--unlock=0x878705ba3f8bc32fcf7f4caa1a35e72af65cf766",
+		fmt.Sprintf("--unlock=%s", EthAddress),
 		"--allow-insecure-unlock",
+		fmt.Sprintf("--txpool.locals=%s", EthAddress),
 		fmt.Sprintf("--password=%s", eth1Path+"/keystore/"+minerPasswordFile),
 	}
 
@@ -132,7 +141,7 @@ func (m *Miner) Start(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	jsonBytes, err := ioutil.ReadFile(keystorePath) // #nosec G304 -- ReadFile is safe
+	jsonBytes, err := os.ReadFile(keystorePath) // #nosec G304 -- ReadFile is safe
 	if err != nil {
 		return err
 	}
@@ -146,11 +155,10 @@ func (m *Miner) Start(ctx context.Context) error {
 	}
 
 	runCmd := exec.CommandContext(ctx, binaryPath, args...) // #nosec G204 -- Safe
-	file, err := helpers.DeleteAndCreateFile(e2e.TestParams.LogPath, "eth1_miner.log")
+	file, err := os.Create(path.Join(e2e.TestParams.LogPath, "eth1_miner.log"))
 	if err != nil {
 		return err
 	}
-	runCmd.Stdout = file
 	runCmd.Stderr = file
 	log.Infof("Starting eth1 miner with flags: %s", strings.Join(args[2:], " "))
 
@@ -224,6 +232,7 @@ func (m *Miner) Start(ctx context.Context) error {
 	// Mark node as ready.
 	close(m.started)
 
+	m.cmd = runCmd
 	return runCmd.Wait()
 }
 
@@ -232,8 +241,23 @@ func (m *Miner) Started() <-chan struct{} {
 	return m.started
 }
 
+// Pause pauses the component and its underlying process.
+func (m *Miner) Pause() error {
+	return m.cmd.Process.Signal(syscall.SIGSTOP)
+}
+
+// Resume resumes the component and its underlying process.
+func (m *Miner) Resume() error {
+	return m.cmd.Process.Signal(syscall.SIGCONT)
+}
+
+// Stop kills the component and its underlying process.
+func (m *Miner) Stop() error {
+	return m.cmd.Process.Kill()
+}
+
 func enodeFromLogFile(name string) (string, error) {
-	byteContent, err := ioutil.ReadFile(name) // #nosec G304
+	byteContent, err := os.ReadFile(name) // #nosec G304
 	if err != nil {
 		return "", err
 	}

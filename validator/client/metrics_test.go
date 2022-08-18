@@ -3,13 +3,13 @@ package client
 import (
 	"testing"
 
-	types "github.com/prysmaticlabs/eth2-types"
-	fieldparams "github.com/prysmaticlabs/prysm/config/fieldparams"
-	"github.com/prysmaticlabs/prysm/config/params"
-	"github.com/prysmaticlabs/prysm/encoding/bytesutil"
-	ethpb "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
-	"github.com/prysmaticlabs/prysm/testing/require"
-	"github.com/prysmaticlabs/prysm/time/slots"
+	fieldparams "github.com/prysmaticlabs/prysm/v3/config/fieldparams"
+	"github.com/prysmaticlabs/prysm/v3/config/params"
+	types "github.com/prysmaticlabs/prysm/v3/consensus-types/primitives"
+	"github.com/prysmaticlabs/prysm/v3/encoding/bytesutil"
+	ethpb "github.com/prysmaticlabs/prysm/v3/proto/prysm/v1alpha1"
+	"github.com/prysmaticlabs/prysm/v3/testing/require"
+	"github.com/prysmaticlabs/prysm/v3/time/slots"
 	logTest "github.com/sirupsen/logrus/hooks/test"
 )
 
@@ -82,7 +82,7 @@ func TestUpdateLogAggregateStats(t *testing.T) {
 		if i == len(responses)-1 { // Handle last log.
 			hook = logTest.NewGlobal()
 		}
-		v.UpdateLogAggregateStats(val, types.Slot(params.BeaconConfig().SlotsPerEpoch*types.Slot(i+1)))
+		v.UpdateLogAggregateStats(val, params.BeaconConfig().SlotsPerEpoch*types.Slot(i+1))
 	}
 
 	require.LogsContain(t, hook, "msg=\"Previous epoch aggregated voting summary\" attestationInclusionPct=\"67%\" "+

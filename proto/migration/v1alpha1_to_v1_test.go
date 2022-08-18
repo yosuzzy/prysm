@@ -3,16 +3,16 @@ package migration
 import (
 	"testing"
 
-	types "github.com/prysmaticlabs/eth2-types"
 	"github.com/prysmaticlabs/go-bitfield"
-	fieldparams "github.com/prysmaticlabs/prysm/config/fieldparams"
-	"github.com/prysmaticlabs/prysm/encoding/bytesutil"
-	ethpbv1 "github.com/prysmaticlabs/prysm/proto/eth/v1"
-	ethpbalpha "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
-	"github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1/wrapper"
-	"github.com/prysmaticlabs/prysm/testing/assert"
-	"github.com/prysmaticlabs/prysm/testing/require"
-	"github.com/prysmaticlabs/prysm/testing/util"
+	fieldparams "github.com/prysmaticlabs/prysm/v3/config/fieldparams"
+	"github.com/prysmaticlabs/prysm/v3/consensus-types/blocks"
+	types "github.com/prysmaticlabs/prysm/v3/consensus-types/primitives"
+	"github.com/prysmaticlabs/prysm/v3/encoding/bytesutil"
+	ethpbv1 "github.com/prysmaticlabs/prysm/v3/proto/eth/v1"
+	ethpbalpha "github.com/prysmaticlabs/prysm/v3/proto/prysm/v1alpha1"
+	"github.com/prysmaticlabs/prysm/v3/testing/assert"
+	"github.com/prysmaticlabs/prysm/v3/testing/require"
+	"github.com/prysmaticlabs/prysm/v3/testing/util"
 )
 
 var (
@@ -44,6 +44,7 @@ var (
 	prevRandao       = bytesutil.PadTo([]byte("prevrandao"), 32)
 	extraData        = bytesutil.PadTo([]byte("extradata"), 32)
 	baseFeePerGas    = bytesutil.PadTo([]byte("basefeepergas"), 32)
+	transactionsRoot = bytesutil.PadTo([]byte("transactions"), 32)
 	aggregationBits  = bitfield.Bitlist{0x01}
 )
 
@@ -55,7 +56,7 @@ func Test_BlockIfaceToV1BlockHeader(t *testing.T) {
 	alphaBlock.Block.StateRoot = stateRoot
 	alphaBlock.Signature = signature
 
-	wsb, err := wrapper.WrappedSignedBeaconBlock(alphaBlock)
+	wsb, err := blocks.NewSignedBeaconBlock(alphaBlock)
 	require.NoError(t, err)
 	v1Header, err := BlockIfaceToV1BlockHeader(wsb)
 	require.NoError(t, err)
@@ -364,7 +365,7 @@ func Test_BlockInterfaceToV1Block(t *testing.T) {
 	}
 	v1Alpha1Block.Signature = signature
 
-	wsb, err := wrapper.WrappedSignedBeaconBlock(v1Alpha1Block)
+	wsb, err := blocks.NewSignedBeaconBlock(v1Alpha1Block)
 	require.NoError(t, err)
 	v1Block, err := SignedBeaconBlock(wsb)
 	require.NoError(t, err)

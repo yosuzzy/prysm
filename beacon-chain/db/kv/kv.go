@@ -4,6 +4,7 @@ package kv
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path"
 	"time"
@@ -13,9 +14,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	prombolt "github.com/prysmaticlabs/prombbolt"
-	"github.com/prysmaticlabs/prysm/beacon-chain/db/iface"
-	"github.com/prysmaticlabs/prysm/config/params"
-	"github.com/prysmaticlabs/prysm/io/file"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/db/iface"
+	"github.com/prysmaticlabs/prysm/v3/config/features"
+	"github.com/prysmaticlabs/prysm/v3/config/params"
+	"github.com/prysmaticlabs/prysm/v3/io/file"
 	bolt "go.etcd.io/bbolt"
 )
 
@@ -35,6 +37,8 @@ const (
 	boltAllocSize = 8 * 1024 * 1024
 	// The size of hash length in bytes
 	hashLength = 32
+	// Specifies the initial mmap size of bolt.
+	mmapSize = 536870912
 )
 
 var (
@@ -68,11 +72,6 @@ var blockedBuckets = [][]byte{
 	finalizedBlockRootsIndexBucket,
 }
 
-// Config for the bolt db kv store.
-type Config struct {
-	InitialMMapSize int
-}
-
 // Store defines an implementation of the Prysm Database interface
 // using BoltDB as the underlying persistent kv-store for Ethereum Beacon Nodes.
 type Store struct {
@@ -94,7 +93,7 @@ func KVStoreDatafilePath(dirPath string) string {
 // NewKVStore initializes a new boltDB key-value store at the directory
 // path specified, creates the kv-buckets based on the schema, and stores
 // an open connection db object as a property of the Store struct.
-func NewKVStore(ctx context.Context, dirPath string, config *Config) (*Store, error) {
+func NewKVStore(ctx context.Context, dirPath string) (*Store, error) {
 	hasDir, err := file.HasDir(dirPath)
 	if err != nil {
 		return nil, err
@@ -105,51 +104,39 @@ func NewKVStore(ctx context.Context, dirPath string, config *Config) (*Store, er
 		}
 	}
 	datafile := KVStoreDatafilePath(dirPath)
-	start := time.Now()
 	log.Infof("Opening Bolt DB at %s", datafile)
 	boltDB, err := bolt.Open(
 		datafile,
 		params.BeaconIoConfig().ReadWritePermissions,
 		&bolt.Options{
 			Timeout:         1 * time.Second,
-			InitialMmapSize: config.InitialMMapSize,
+			InitialMmapSize: mmapSize,
 		},
 	)
 	if err != nil {
-		log.WithField("elapsed", time.Since(start)).Error("Failed to open Bolt DB")
 		if errors.Is(err, bolt.ErrTimeout) {
 			return nil, errors.New("cannot obtain database lock, database may be in use by another process")
 		}
 		return nil, err
 	}
-	log.WithField("elapsed", time.Since(start)).Info("Opened Bolt DB")
-
 	boltDB.AllocSize = boltAllocSize
-	start = time.Now()
-	log.Infof("Creating block cache...")
 	blockCache, err := ristretto.NewCache(&ristretto.Config{
 		NumCounters: 1000,           // number of keys to track frequency of (1000).
 		MaxCost:     BlockCacheSize, // maximum cost of cache (1000 Blocks).
 		BufferItems: 64,             // number of keys per Get buffer.
 	})
 	if err != nil {
-		log.WithField("elapsed", time.Since(start)).Error("Failed to create block cache")
 		return nil, err
 	}
-	log.WithField("elapsed", time.Since(start)).Info("Created block cache")
 
-	start = time.Now()
-	log.Infof("Creating validator cache...")
 	validatorCache, err := ristretto.NewCache(&ristretto.Config{
 		NumCounters: NumOfValidatorEntries, // number of entries in cache (2 Million).
 		MaxCost:     ValidatorEntryMaxCost, // maximum size of the cache (64Mb)
 		BufferItems: 64,                    // number of keys per Get buffer.
 	})
 	if err != nil {
-		log.WithField("elapsed", time.Since(start)).Error("Failed to to create validator cache")
 		return nil, err
 	}
-	log.WithField("elapsed", time.Since(start)).Info("Created validator cache")
 
 	kv := &Store{
 		db:                  boltDB,
@@ -159,8 +146,6 @@ func NewKVStore(ctx context.Context, dirPath string, config *Config) (*Store, er
 		stateSummaryCache:   newStateSummaryCache(),
 		ctx:                 ctx,
 	}
-	start = time.Now()
-	log.Infof("Updating DB and creating buckets...")
 	if err := kv.db.Update(func(tx *bolt.Tx) error {
 		return createBuckets(
 			tx,
@@ -192,16 +177,18 @@ func NewKVStore(ctx context.Context, dirPath string, config *Config) (*Store, er
 			migrationsBucket,
 
 			feeRecipientBucket,
+			registrationBucket,
 		)
 	}); err != nil {
-		log.WithField("elapsed", time.Since(start)).Error("Failed to update db and create buckets")
 		return nil, err
 	}
-	log.WithField("elapsed", time.Since(start)).Info("Updated db and created buckets")
-
-	err = prometheus.Register(createBoltCollector(kv.db))
-
-	return kv, err
+	if err = prometheus.Register(createBoltCollector(kv.db)); err != nil {
+		return nil, err
+	}
+	if err = kv.checkNeedsResync(); err != nil {
+		return nil, err
+	}
+	return kv, nil
 }
 
 // ClearDB removes the previously stored database in the data directory.
@@ -231,6 +218,23 @@ func (s *Store) Close() error {
 // DatabasePath at which this database writes files.
 func (s *Store) DatabasePath() string {
 	return s.databasePath
+}
+
+func (s *Store) checkNeedsResync() error {
+	return s.db.View(func(tx *bolt.Tx) error {
+		bkt := tx.Bucket(migrationsBucket)
+		hasDisabledFeature := !features.Get().EnableOnlyBlindedBeaconBlocks
+		if hasDisabledFeature && bkt.Get(migrationBlindedBeaconBlocksKey) != nil {
+			return fmt.Errorf(
+				"you have disabled the flag %s, and your node must resync to ensure your "+
+					"database is compatible. If you do not want to resync, please re-enable the %s flag",
+				features.EnableOnlyBlindedBeaconBlocks.Name,
+				features.EnableOnlyBlindedBeaconBlocks.Name,
+			)
+		}
+		return nil
+	})
+
 }
 
 func createBuckets(tx *bolt.Tx, buckets ...[]byte) error {

@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/prysmaticlabs/prysm/encoding/bytesutil"
-	v1alpha1 "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
-	"github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1/block"
+	"github.com/prysmaticlabs/prysm/v3/consensus-types/interfaces"
+	"github.com/prysmaticlabs/prysm/v3/encoding/bytesutil"
+	v1alpha1 "github.com/prysmaticlabs/prysm/v3/proto/prysm/v1alpha1"
 )
 
 type votes struct {
@@ -30,7 +30,7 @@ func NewVotes() *votes {
 	}
 }
 
-func (v *votes) Insert(blk block.BeaconBlock) {
+func (v *votes) Insert(blk interfaces.BeaconBlock) {
 	v.l.Lock()
 	defer v.l.Unlock()
 

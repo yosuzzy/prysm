@@ -7,19 +7,19 @@ import (
 	"math"
 
 	"github.com/pkg/errors"
-	types "github.com/prysmaticlabs/eth2-types"
-	corehelpers "github.com/prysmaticlabs/prysm/beacon-chain/core/helpers"
-	"github.com/prysmaticlabs/prysm/beacon-chain/core/signing"
-	"github.com/prysmaticlabs/prysm/config/params"
-	"github.com/prysmaticlabs/prysm/encoding/bytesutil"
-	ethpb "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
-	"github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1/block"
-	"github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1/wrapper"
-	"github.com/prysmaticlabs/prysm/testing/endtoend/helpers"
-	e2e "github.com/prysmaticlabs/prysm/testing/endtoend/params"
-	"github.com/prysmaticlabs/prysm/testing/endtoend/policies"
-	e2etypes "github.com/prysmaticlabs/prysm/testing/endtoend/types"
-	"github.com/prysmaticlabs/prysm/testing/util"
+	corehelpers "github.com/prysmaticlabs/prysm/v3/beacon-chain/core/helpers"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/core/signing"
+	"github.com/prysmaticlabs/prysm/v3/config/params"
+	"github.com/prysmaticlabs/prysm/v3/consensus-types/blocks"
+	"github.com/prysmaticlabs/prysm/v3/consensus-types/interfaces"
+	types "github.com/prysmaticlabs/prysm/v3/consensus-types/primitives"
+	"github.com/prysmaticlabs/prysm/v3/encoding/bytesutil"
+	ethpb "github.com/prysmaticlabs/prysm/v3/proto/prysm/v1alpha1"
+	"github.com/prysmaticlabs/prysm/v3/testing/endtoend/helpers"
+	e2e "github.com/prysmaticlabs/prysm/v3/testing/endtoend/params"
+	"github.com/prysmaticlabs/prysm/v3/testing/endtoend/policies"
+	e2etypes "github.com/prysmaticlabs/prysm/v3/testing/endtoend/types"
+	"github.com/prysmaticlabs/prysm/v3/testing/util"
 	"golang.org/x/exp/rand"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -372,8 +372,16 @@ func validatorsVoteWithTheMajority(conns ...*grpc.ClientConn) error {
 			b := blk.GetAltairBlock().Block
 			slot = b.Slot
 			vote = b.Body.Eth1Data.BlockHash
+		case *ethpb.BeaconBlockContainer_BellatrixBlock:
+			b := blk.GetBellatrixBlock().Block
+			slot = b.Slot
+			vote = b.Body.Eth1Data.BlockHash
+		case *ethpb.BeaconBlockContainer_BlindedBellatrixBlock:
+			b := blk.GetBlindedBellatrixBlock().Block
+			slot = b.Slot
+			vote = b.Body.Eth1Data.BlockHash
 		default:
-			return errors.New("block neither phase0 nor altair")
+			return errors.New("block neither phase0,altair or bellatrix")
 		}
 		slotsPerVotingPeriod := params.E2ETestConfig().SlotsPerEpoch.Mul(uint64(params.E2ETestConfig().EpochsPerEth1VotingPeriod))
 
@@ -405,15 +413,18 @@ func validatorsVoteWithTheMajority(conns ...*grpc.ClientConn) error {
 
 var expectedEth1DataVote []byte
 
-func convertToBlockInterface(obj *ethpb.BeaconBlockContainer) (block.SignedBeaconBlock, error) {
+func convertToBlockInterface(obj *ethpb.BeaconBlockContainer) (interfaces.SignedBeaconBlock, error) {
 	if obj.GetPhase0Block() != nil {
-		return wrapper.WrappedSignedBeaconBlock(obj.GetPhase0Block())
+		return blocks.NewSignedBeaconBlock(obj.GetPhase0Block())
 	}
 	if obj.GetAltairBlock() != nil {
-		return wrapper.WrappedSignedBeaconBlock(obj.GetAltairBlock())
+		return blocks.NewSignedBeaconBlock(obj.GetAltairBlock())
 	}
 	if obj.GetBellatrixBlock() != nil {
-		return wrapper.WrappedSignedBeaconBlock(obj.GetBellatrixBlock())
+		return blocks.NewSignedBeaconBlock(obj.GetBellatrixBlock())
+	}
+	if obj.GetBlindedBellatrixBlock() != nil {
+		return blocks.NewSignedBeaconBlock(obj.GetBlindedBellatrixBlock())
 	}
 	return nil, errors.New("container has no block")
 }

@@ -13,8 +13,8 @@ import (
 	"github.com/gorilla/mux"
 	gwruntime "github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/pkg/errors"
-	"github.com/prysmaticlabs/prysm/api/gateway/apimiddleware"
-	"github.com/prysmaticlabs/prysm/runtime"
+	"github.com/prysmaticlabs/prysm/v3/api/gateway/apimiddleware"
+	"github.com/prysmaticlabs/prysm/v3/runtime"
 	"github.com/rs/cors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
@@ -121,8 +121,9 @@ func (g *Gateway) Start() {
 	}
 
 	g.server = &http.Server{
-		Addr:    g.cfg.gatewayAddr,
-		Handler: corsMux,
+		Addr:              g.cfg.gatewayAddr,
+		Handler:           corsMux,
+		ReadHeaderTimeout: time.Second,
 	}
 
 	go func() {

@@ -2,7 +2,7 @@ package apimiddleware
 
 import (
 	"github.com/pkg/errors"
-	"github.com/prysmaticlabs/prysm/api/gateway/apimiddleware"
+	"github.com/prysmaticlabs/prysm/v3/api/gateway/apimiddleware"
 )
 
 // ValidatorEndpointFactory creates endpoints used for running validator API calls through the API Middleware.
@@ -17,6 +17,9 @@ func (f *ValidatorEndpointFactory) IsNil() bool {
 func (*ValidatorEndpointFactory) Paths() []string {
 	return []string{
 		"/eth/v1/keystores",
+		"/eth/v1/remotekeys",
+		"/eth/v1/validator/{pubkey}/feerecipient",
+		"/eth/v1/validator/{pubkey}/gas_limit",
 	}
 }
 
@@ -30,6 +33,18 @@ func (*ValidatorEndpointFactory) Create(path string) (*apimiddleware.Endpoint, e
 		endpoint.PostResponse = &importKeystoresResponseJson{}
 		endpoint.DeleteRequest = &deleteKeystoresRequestJson{}
 		endpoint.DeleteResponse = &deleteKeystoresResponseJson{}
+	case "/eth/v1/remotekeys":
+		endpoint.GetResponse = &listRemoteKeysResponseJson{}
+		endpoint.PostRequest = &importRemoteKeysRequestJson{}
+		endpoint.PostResponse = &importRemoteKeysResponseJson{}
+		endpoint.DeleteRequest = &deleteRemoteKeysRequestJson{}
+		endpoint.DeleteResponse = &deleteRemoteKeysResponseJson{}
+	case "/eth/v1/validator/{pubkey}/feerecipient":
+		endpoint.GetResponse = &getFeeRecipientByPubkeyResponseJson{}
+		endpoint.PostRequest = &setFeeRecipientByPubkeyRequestJson{}
+	case "/eth/v1/validator/{pubkey}/gas_limit":
+		endpoint.GetResponse = &getGasLimitResponseJson{}
+		endpoint.PostRequest = &setGasLimitRequestJson{}
 	default:
 		return nil, errors.New("invalid path")
 	}

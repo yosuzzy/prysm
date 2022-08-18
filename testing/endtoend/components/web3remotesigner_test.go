@@ -5,14 +5,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/prysmaticlabs/prysm/config/params"
-	"github.com/prysmaticlabs/prysm/testing/endtoend/components"
-	e2eparams "github.com/prysmaticlabs/prysm/testing/endtoend/params"
-	"github.com/prysmaticlabs/prysm/testing/require"
+	"github.com/prysmaticlabs/prysm/v3/config/params"
+	"github.com/prysmaticlabs/prysm/v3/testing/endtoend/components"
+	e2eparams "github.com/prysmaticlabs/prysm/v3/testing/endtoend/params"
+	"github.com/prysmaticlabs/prysm/v3/testing/require"
 )
 
 func TestWeb3RemoteSigner_StartsAndReturnsPublicKeys(t *testing.T) {
-	require.NoError(t, e2eparams.Init(0))
+	require.NoError(t, e2eparams.Init(t, 0))
+
 	wsc := components.NewWeb3RemoteSigner()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

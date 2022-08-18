@@ -5,18 +5,18 @@ import (
 	"encoding/binary"
 
 	"github.com/pkg/errors"
-	fieldparams "github.com/prysmaticlabs/prysm/config/fieldparams"
-	"github.com/prysmaticlabs/prysm/config/params"
-	"github.com/prysmaticlabs/prysm/crypto/hash"
-	"github.com/prysmaticlabs/prysm/encoding/bytesutil"
-	"github.com/prysmaticlabs/prysm/encoding/ssz"
-	ethpb "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
+	fieldparams "github.com/prysmaticlabs/prysm/v3/config/fieldparams"
+	"github.com/prysmaticlabs/prysm/v3/config/params"
+	"github.com/prysmaticlabs/prysm/v3/crypto/hash"
+	"github.com/prysmaticlabs/prysm/v3/encoding/bytesutil"
+	"github.com/prysmaticlabs/prysm/v3/encoding/ssz"
+	ethpb "github.com/prysmaticlabs/prysm/v3/proto/prysm/v1alpha1"
 	"go.opencensus.io/trace"
 )
 
 // ComputeFieldRootsWithHasherPhase0 hashes the provided phase 0 state and returns its respective field roots.
 func ComputeFieldRootsWithHasherPhase0(ctx context.Context, state *ethpb.BeaconState) ([][]byte, error) {
-	_, span := trace.StartSpan(ctx, "ComputeFieldRootsWithHasherPhase0")
+	ctx, span := trace.StartSpan(ctx, "ComputeFieldRootsWithHasherPhase0")
 	defer span.End()
 
 	if state == nil {
@@ -53,14 +53,14 @@ func ComputeFieldRootsWithHasherPhase0(ctx context.Context, state *ethpb.BeaconS
 	fieldRoots[4] = headerHashTreeRoot[:]
 
 	// BlockRoots array root.
-	blockRootsRoot, err := arraysRoot(state.BlockRoots, fieldparams.BlockRootsLength)
+	blockRootsRoot, err := ArraysRoot(state.BlockRoots, fieldparams.BlockRootsLength)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not compute block roots merkleization")
 	}
 	fieldRoots[5] = blockRootsRoot[:]
 
 	// StateRoots array root.
-	stateRootsRoot, err := arraysRoot(state.StateRoots, fieldparams.StateRootsLength)
+	stateRootsRoot, err := ArraysRoot(state.StateRoots, fieldparams.StateRootsLength)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not compute state roots merkleization")
 	}
@@ -81,7 +81,7 @@ func ComputeFieldRootsWithHasherPhase0(ctx context.Context, state *ethpb.BeaconS
 	fieldRoots[8] = eth1HashTreeRoot[:]
 
 	// Eth1DataVotes slice root.
-	eth1VotesRoot, err := eth1DataVotesRoot(state.Eth1DataVotes)
+	eth1VotesRoot, err := Eth1DataVotesRoot(state.Eth1DataVotes)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not compute eth1data votes merkleization")
 	}
@@ -108,7 +108,7 @@ func ComputeFieldRootsWithHasherPhase0(ctx context.Context, state *ethpb.BeaconS
 	fieldRoots[12] = balancesRoot[:]
 
 	// RandaoMixes array root.
-	randaoRootsRoot, err := arraysRoot(state.RandaoMixes, fieldparams.RandaoMixesLength)
+	randaoRootsRoot, err := ArraysRoot(state.RandaoMixes, fieldparams.RandaoMixesLength)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not compute randao roots merkleization")
 	}
@@ -122,14 +122,14 @@ func ComputeFieldRootsWithHasherPhase0(ctx context.Context, state *ethpb.BeaconS
 	fieldRoots[14] = slashingsRootsRoot[:]
 
 	// PreviousEpochAttestations slice root.
-	prevAttsRoot, err := epochAttestationsRoot(state.PreviousEpochAttestations)
+	prevAttsRoot, err := EpochAttestationsRoot(state.PreviousEpochAttestations)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not compute previous epoch attestations merkleization")
 	}
 	fieldRoots[15] = prevAttsRoot[:]
 
 	// CurrentEpochAttestations slice root.
-	currAttsRoot, err := epochAttestationsRoot(state.CurrentEpochAttestations)
+	currAttsRoot, err := EpochAttestationsRoot(state.CurrentEpochAttestations)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not compute current epoch attestations merkleization")
 	}
@@ -164,7 +164,7 @@ func ComputeFieldRootsWithHasherPhase0(ctx context.Context, state *ethpb.BeaconS
 
 // ComputeFieldRootsWithHasherAltair hashes the provided altair state and returns its respective field roots.
 func ComputeFieldRootsWithHasherAltair(ctx context.Context, state *ethpb.BeaconStateAltair) ([][]byte, error) {
-	_, span := trace.StartSpan(ctx, "ComputeFieldRootsWithHasherAltair")
+	ctx, span := trace.StartSpan(ctx, "ComputeFieldRootsWithHasherAltair")
 	defer span.End()
 
 	if state == nil {
@@ -201,14 +201,14 @@ func ComputeFieldRootsWithHasherAltair(ctx context.Context, state *ethpb.BeaconS
 	fieldRoots[4] = headerHashTreeRoot[:]
 
 	// BlockRoots array root.
-	blockRootsRoot, err := arraysRoot(state.BlockRoots, fieldparams.BlockRootsLength)
+	blockRootsRoot, err := ArraysRoot(state.BlockRoots, fieldparams.BlockRootsLength)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not compute block roots merkleization")
 	}
 	fieldRoots[5] = blockRootsRoot[:]
 
 	// StateRoots array root.
-	stateRootsRoot, err := arraysRoot(state.StateRoots, fieldparams.StateRootsLength)
+	stateRootsRoot, err := ArraysRoot(state.StateRoots, fieldparams.StateRootsLength)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not compute state roots merkleization")
 	}
@@ -229,7 +229,7 @@ func ComputeFieldRootsWithHasherAltair(ctx context.Context, state *ethpb.BeaconS
 	fieldRoots[8] = eth1HashTreeRoot[:]
 
 	// Eth1DataVotes slice root.
-	eth1VotesRoot, err := eth1DataVotesRoot(state.Eth1DataVotes)
+	eth1VotesRoot, err := Eth1DataVotesRoot(state.Eth1DataVotes)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not compute eth1data votes merkleization")
 	}
@@ -256,7 +256,7 @@ func ComputeFieldRootsWithHasherAltair(ctx context.Context, state *ethpb.BeaconS
 	fieldRoots[12] = balancesRoot[:]
 
 	// RandaoMixes array root.
-	randaoRootsRoot, err := arraysRoot(state.RandaoMixes, fieldparams.RandaoMixesLength)
+	randaoRootsRoot, err := ArraysRoot(state.RandaoMixes, fieldparams.RandaoMixesLength)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not compute randao roots merkleization")
 	}
@@ -334,7 +334,7 @@ func ComputeFieldRootsWithHasherAltair(ctx context.Context, state *ethpb.BeaconS
 
 // ComputeFieldRootsWithHasherBellatrix hashes the provided bellatrix state and returns its respective field roots.
 func ComputeFieldRootsWithHasherBellatrix(ctx context.Context, state *ethpb.BeaconStateBellatrix) ([][]byte, error) {
-	_, span := trace.StartSpan(ctx, "ComputeFieldRootsWithHasherBellatrix")
+	ctx, span := trace.StartSpan(ctx, "ComputeFieldRootsWithHasherBellatrix")
 	defer span.End()
 
 	if state == nil {
@@ -371,14 +371,14 @@ func ComputeFieldRootsWithHasherBellatrix(ctx context.Context, state *ethpb.Beac
 	fieldRoots[4] = headerHashTreeRoot[:]
 
 	// BlockRoots array root.
-	blockRootsRoot, err := arraysRoot(state.BlockRoots, fieldparams.BlockRootsLength)
+	blockRootsRoot, err := ArraysRoot(state.BlockRoots, fieldparams.BlockRootsLength)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not compute block roots merkleization")
 	}
 	fieldRoots[5] = blockRootsRoot[:]
 
 	// StateRoots array root.
-	stateRootsRoot, err := arraysRoot(state.StateRoots, fieldparams.StateRootsLength)
+	stateRootsRoot, err := ArraysRoot(state.StateRoots, fieldparams.StateRootsLength)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not compute state roots merkleization")
 	}
@@ -399,7 +399,7 @@ func ComputeFieldRootsWithHasherBellatrix(ctx context.Context, state *ethpb.Beac
 	fieldRoots[8] = eth1HashTreeRoot[:]
 
 	// Eth1DataVotes slice root.
-	eth1VotesRoot, err := eth1DataVotesRoot(state.Eth1DataVotes)
+	eth1VotesRoot, err := Eth1DataVotesRoot(state.Eth1DataVotes)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not compute eth1data votes merkleization")
 	}
@@ -426,7 +426,7 @@ func ComputeFieldRootsWithHasherBellatrix(ctx context.Context, state *ethpb.Beac
 	fieldRoots[12] = balancesRoot[:]
 
 	// RandaoMixes array root.
-	randaoRootsRoot, err := arraysRoot(state.RandaoMixes, fieldparams.RandaoMixesLength)
+	randaoRootsRoot, err := ArraysRoot(state.RandaoMixes, fieldparams.RandaoMixesLength)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not compute randao roots merkleization")
 	}

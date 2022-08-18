@@ -5,16 +5,16 @@ import (
 	"testing"
 
 	"github.com/pkg/errors"
-	types "github.com/prysmaticlabs/eth2-types"
-	"github.com/prysmaticlabs/prysm/beacon-chain/blockchain/store"
-	testDB "github.com/prysmaticlabs/prysm/beacon-chain/db/testing"
-	fieldparams "github.com/prysmaticlabs/prysm/config/fieldparams"
-	"github.com/prysmaticlabs/prysm/encoding/bytesutil"
-	ethpb "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
-	"github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1/wrapper"
-	"github.com/prysmaticlabs/prysm/testing/require"
-	"github.com/prysmaticlabs/prysm/testing/util"
-	"github.com/prysmaticlabs/prysm/time/slots"
+	testDB "github.com/prysmaticlabs/prysm/v3/beacon-chain/db/testing"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/forkchoice/protoarray"
+	forkchoicetypes "github.com/prysmaticlabs/prysm/v3/beacon-chain/forkchoice/types"
+	fieldparams "github.com/prysmaticlabs/prysm/v3/config/fieldparams"
+	types "github.com/prysmaticlabs/prysm/v3/consensus-types/primitives"
+	"github.com/prysmaticlabs/prysm/v3/encoding/bytesutil"
+	ethpb "github.com/prysmaticlabs/prysm/v3/proto/prysm/v1alpha1"
+	"github.com/prysmaticlabs/prysm/v3/testing/require"
+	"github.com/prysmaticlabs/prysm/v3/testing/util"
+	"github.com/prysmaticlabs/prysm/v3/time/slots"
 )
 
 func TestService_VerifyWeakSubjectivityRoot(t *testing.T) {
@@ -22,9 +22,7 @@ func TestService_VerifyWeakSubjectivityRoot(t *testing.T) {
 
 	b := util.NewBeaconBlock()
 	b.Block.Slot = 1792480
-	wsb, err := wrapper.WrappedSignedBeaconBlock(b)
-	require.NoError(t, err)
-	require.NoError(t, beaconDB.SaveBlock(context.Background(), wsb))
+	util.SaveBlock(t, context.Background(), beaconDB, b)
 	r, err := b.Block.HashTreeRoot()
 	require.NoError(t, err)
 
@@ -74,13 +72,14 @@ func TestService_VerifyWeakSubjectivityRoot(t *testing.T) {
 			wv, err := NewWeakSubjectivityVerifier(tt.checkpt, beaconDB)
 			require.Equal(t, !tt.disabled, wv.enabled)
 			require.NoError(t, err)
+			fcs := protoarray.New()
 			s := &Service{
-				cfg:        &config{BeaconDB: beaconDB, WeakSubjectivityCheckpt: tt.checkpt},
-				store:      &store.Store{},
+				cfg:        &config{BeaconDB: beaconDB, WeakSubjectivityCheckpt: tt.checkpt, ForkChoiceStore: fcs},
 				wsVerifier: wv,
 			}
-			s.store.SetFinalizedCheckpt(&ethpb.Checkpoint{Epoch: tt.finalizedEpoch})
-			err = s.wsVerifier.VerifyWeakSubjectivity(context.Background(), s.store.FinalizedCheckpt().Epoch)
+			require.NoError(t, fcs.UpdateFinalizedCheckpoint(&forkchoicetypes.Checkpoint{Epoch: tt.finalizedEpoch}))
+			cp := s.ForkChoicer().FinalizedCheckpoint()
+			err = s.wsVerifier.VerifyWeakSubjectivity(context.Background(), cp.Epoch)
 			if tt.wantErr == nil {
 				require.NoError(t, err)
 			} else {

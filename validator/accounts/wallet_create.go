@@ -9,16 +9,16 @@ import (
 
 	"github.com/manifoldco/promptui"
 	"github.com/pkg/errors"
-	"github.com/prysmaticlabs/prysm/cmd/validator/flags"
-	"github.com/prysmaticlabs/prysm/io/prompt"
-	"github.com/prysmaticlabs/prysm/validator/accounts/iface"
-	"github.com/prysmaticlabs/prysm/validator/accounts/userprompt"
-	"github.com/prysmaticlabs/prysm/validator/accounts/wallet"
-	"github.com/prysmaticlabs/prysm/validator/keymanager"
-	"github.com/prysmaticlabs/prysm/validator/keymanager/derived"
-	"github.com/prysmaticlabs/prysm/validator/keymanager/local"
-	"github.com/prysmaticlabs/prysm/validator/keymanager/remote"
-	remote_web3signer "github.com/prysmaticlabs/prysm/validator/keymanager/remote-web3signer"
+	"github.com/prysmaticlabs/prysm/v3/cmd/validator/flags"
+	"github.com/prysmaticlabs/prysm/v3/io/prompt"
+	"github.com/prysmaticlabs/prysm/v3/validator/accounts/iface"
+	"github.com/prysmaticlabs/prysm/v3/validator/accounts/userprompt"
+	"github.com/prysmaticlabs/prysm/v3/validator/accounts/wallet"
+	"github.com/prysmaticlabs/prysm/v3/validator/keymanager"
+	"github.com/prysmaticlabs/prysm/v3/validator/keymanager/derived"
+	"github.com/prysmaticlabs/prysm/v3/validator/keymanager/local"
+	"github.com/prysmaticlabs/prysm/v3/validator/keymanager/remote"
+	remoteweb3signer "github.com/prysmaticlabs/prysm/v3/validator/keymanager/remote-web3signer"
 	"github.com/urfave/cli/v2"
 )
 
@@ -27,7 +27,7 @@ type CreateWalletConfig struct {
 	SkipMnemonicConfirm   bool
 	NumAccounts           int
 	RemoteKeymanagerOpts  *remote.KeymanagerOpts
-	Web3SignerSetupConfig *remote_web3signer.SetupConfig
+	Web3SignerSetupConfig *remoteweb3signer.SetupConfig
 	WalletCfg             *wallet.Config
 	Mnemonic25thWord      string
 }
@@ -40,7 +40,7 @@ func CreateAndSaveWalletCli(cliCtx *cli.Context) (*wallet.Wallet, error) {
 	if err != nil {
 		return nil, err
 	}
-	createWalletConfig, err := extractWalletCreationConfigFromCli(cliCtx, keymanagerKind)
+	createWalletConfig, err := ExtractWalletCreationConfigFromCli(cliCtx, keymanagerKind)
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +72,7 @@ func CreateWalletWithKeymanager(ctx context.Context, cfg *CreateWalletConfig) (*
 	var err error
 	switch w.KeymanagerKind() {
 	case keymanager.Local:
-		if err = createLocalKeymanagerWallet(ctx, w); err != nil {
+		if err = CreateLocalKeymanagerWallet(ctx, w); err != nil {
 			return nil, errors.Wrap(err, "could not initialize wallet")
 		}
 		// TODO(#9883) - Remove this when we have a better way to handle this. should be safe to use for now.
@@ -131,7 +131,8 @@ func extractKeymanagerKindFromCli(cliCtx *cli.Context) (keymanager.Kind, error) 
 	return inputKeymanagerKind(cliCtx)
 }
 
-func extractWalletCreationConfigFromCli(cliCtx *cli.Context, keymanagerKind keymanager.Kind) (*CreateWalletConfig, error) {
+// ExtractWalletCreationConfigFromCli prompts the user for wallet creation input.
+func ExtractWalletCreationConfigFromCli(cliCtx *cli.Context, keymanagerKind keymanager.Kind) (*CreateWalletConfig, error) {
 	walletDir, err := userprompt.InputDirectory(cliCtx, userprompt.WalletDirPromptText, flags.WalletDirFlag)
 	if err != nil {
 		return nil, err
@@ -204,7 +205,7 @@ func extractWalletCreationConfigFromCli(cliCtx *cli.Context, keymanagerKind keym
 	return createWalletConfig, nil
 }
 
-func createLocalKeymanagerWallet(_ context.Context, wallet *wallet.Wallet) error {
+func CreateLocalKeymanagerWallet(_ context.Context, wallet *wallet.Wallet) error {
 	if wallet == nil {
 		return errors.New("nil wallet")
 	}

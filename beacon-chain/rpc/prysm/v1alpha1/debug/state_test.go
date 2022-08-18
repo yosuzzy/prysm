@@ -5,17 +5,15 @@ import (
 	"math"
 	"testing"
 
-	types "github.com/prysmaticlabs/eth2-types"
-	mock "github.com/prysmaticlabs/prysm/beacon-chain/blockchain/testing"
-	dbTest "github.com/prysmaticlabs/prysm/beacon-chain/db/testing"
-	"github.com/prysmaticlabs/prysm/beacon-chain/state"
-	"github.com/prysmaticlabs/prysm/beacon-chain/state/stategen"
-	mockstategen "github.com/prysmaticlabs/prysm/beacon-chain/state/stategen/mock"
-	pbrpc "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
-	"github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1/wrapper"
-	"github.com/prysmaticlabs/prysm/testing/assert"
-	"github.com/prysmaticlabs/prysm/testing/require"
-	"github.com/prysmaticlabs/prysm/testing/util"
+	mock "github.com/prysmaticlabs/prysm/v3/beacon-chain/blockchain/testing"
+	dbTest "github.com/prysmaticlabs/prysm/v3/beacon-chain/db/testing"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/state/stategen"
+	mockstategen "github.com/prysmaticlabs/prysm/v3/beacon-chain/state/stategen/mock"
+	types "github.com/prysmaticlabs/prysm/v3/consensus-types/primitives"
+	pbrpc "github.com/prysmaticlabs/prysm/v3/proto/prysm/v1alpha1"
+	"github.com/prysmaticlabs/prysm/v3/testing/assert"
+	"github.com/prysmaticlabs/prysm/v3/testing/require"
+	"github.com/prysmaticlabs/prysm/v3/testing/util"
 )
 
 func addDefaultReplayerBuilder(s *Server, h stategen.HistoryAccessor) {
@@ -33,9 +31,7 @@ func TestServer_GetBeaconState(t *testing.T) {
 	require.NoError(t, st.SetSlot(slot))
 	b := util.NewBeaconBlock()
 	b.Block.Slot = slot
-	wsb, err := wrapper.WrappedSignedBeaconBlock(b)
-	require.NoError(t, err)
-	require.NoError(t, db.SaveBlock(ctx, wsb))
+	util.SaveBlock(t, ctx, db, b)
 	gRoot, err := b.Block.HashTreeRoot()
 	require.NoError(t, err)
 	gen := stategen.New(db)
@@ -83,10 +79,9 @@ func TestServer_GetBeaconState(t *testing.T) {
 			Slot: slot + 1,
 		},
 	}
-	state := state.BeaconState(st)
 	// since we are requesting a state at a skipped slot, use the same method as stategen
 	// to advance to the pre-state for the subsequent slot
-	state, err = stategen.ReplayProcessSlots(ctx, state, slot+1)
+	state, err := stategen.ReplayProcessSlots(ctx, st, slot+1)
 	require.NoError(t, err)
 	wanted, err = state.MarshalSSZ()
 	require.NoError(t, err)

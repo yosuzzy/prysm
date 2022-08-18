@@ -7,36 +7,37 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/prysmaticlabs/prysm/beacon-chain/blockchain"
-	mock "github.com/prysmaticlabs/prysm/beacon-chain/blockchain/testing"
-	"github.com/prysmaticlabs/prysm/beacon-chain/cache/depositcache"
-	coreTime "github.com/prysmaticlabs/prysm/beacon-chain/core/time"
-	testDB "github.com/prysmaticlabs/prysm/beacon-chain/db/testing"
-	"github.com/prysmaticlabs/prysm/beacon-chain/forkchoice/protoarray"
-	"github.com/prysmaticlabs/prysm/beacon-chain/operations/attestations"
-	"github.com/prysmaticlabs/prysm/beacon-chain/state"
-	"github.com/prysmaticlabs/prysm/beacon-chain/state/stategen"
-	"github.com/prysmaticlabs/prysm/config/params"
-	"github.com/prysmaticlabs/prysm/encoding/bytesutil"
-	pb "github.com/prysmaticlabs/prysm/proto/engine/v1"
-	ethpb "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
-	"github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1/block"
-	"github.com/prysmaticlabs/prysm/testing/require"
+	gethtypes "github.com/ethereum/go-ethereum/core/types"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/blockchain"
+	mock "github.com/prysmaticlabs/prysm/v3/beacon-chain/blockchain/testing"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/cache"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/cache/depositcache"
+	coreTime "github.com/prysmaticlabs/prysm/v3/beacon-chain/core/time"
+	testDB "github.com/prysmaticlabs/prysm/v3/beacon-chain/db/testing"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/forkchoice/protoarray"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/operations/attestations"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/state"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/state/stategen"
+	"github.com/prysmaticlabs/prysm/v3/consensus-types/interfaces"
+	"github.com/prysmaticlabs/prysm/v3/encoding/bytesutil"
+	pb "github.com/prysmaticlabs/prysm/v3/proto/engine/v1"
+	ethpb "github.com/prysmaticlabs/prysm/v3/proto/prysm/v1alpha1"
+	"github.com/prysmaticlabs/prysm/v3/testing/require"
 )
 
-func startChainService(t *testing.T, st state.BeaconState, block block.SignedBeaconBlock, engineMock *engineMock) *blockchain.Service {
+func startChainService(t testing.TB, st state.BeaconState, block interfaces.SignedBeaconBlock, engineMock *engineMock) *blockchain.Service {
 	db := testDB.SetupDB(t)
 	ctx := context.Background()
 	require.NoError(t, db.SaveBlock(ctx, block))
 	r, err := block.Block().HashTreeRoot()
 	require.NoError(t, err)
 	require.NoError(t, db.SaveGenesisBlockRoot(ctx, r))
-	require.NoError(t, db.SaveState(ctx, st, r))
+
 	cp := &ethpb.Checkpoint{
 		Epoch: coreTime.CurrentEpoch(st),
 		Root:  r[:],
 	}
-
+	require.NoError(t, db.SaveState(ctx, st, r))
 	require.NoError(t, db.SaveJustifiedCheckpoint(ctx, cp))
 	require.NoError(t, db.SaveFinalizedCheckpoint(ctx, cp))
 	attPool, err := attestations.NewService(ctx, &attestations.Config{
@@ -52,11 +53,12 @@ func startChainService(t *testing.T, st state.BeaconState, block block.SignedBea
 		blockchain.WithFinalizedStateAtStartUp(st),
 		blockchain.WithDatabase(db),
 		blockchain.WithAttestationService(attPool),
-		blockchain.WithForkChoiceStore(protoarray.New(0, 0, params.BeaconConfig().ZeroHash)),
+		blockchain.WithForkChoiceStore(protoarray.New()),
 		blockchain.WithStateGen(stategen.New(db)),
 		blockchain.WithStateNotifier(&mock.MockStateNotifier{}),
 		blockchain.WithAttestationPool(attestations.NewPool()),
 		blockchain.WithDepositCache(depositCache),
+		blockchain.WithProposerIdsCache(cache.NewProposerPayloadIDsCache()),
 	)
 	service, err := blockchain.NewService(context.Background(), opts...)
 	require.NoError(t, err)
@@ -74,7 +76,7 @@ func (m *engineMock) GetPayload(context.Context, [8]byte) (*pb.ExecutionPayload,
 func (m *engineMock) ForkchoiceUpdated(context.Context, *pb.ForkchoiceState, *pb.PayloadAttributes) (*pb.PayloadIDBytes, []byte, error) {
 	return nil, nil, nil
 }
-func (m *engineMock) NewPayload(context.Context, *pb.ExecutionPayload) ([]byte, error) {
+func (m *engineMock) NewPayload(context.Context, interfaces.ExecutionData) ([]byte, error) {
 	return nil, nil
 }
 
@@ -86,7 +88,7 @@ func (m *engineMock) ExchangeTransitionConfiguration(context.Context, *pb.Transi
 	return nil
 }
 
-func (m *engineMock) ExecutionBlockByHash(_ context.Context, hash common.Hash) (*pb.ExecutionBlock, error) {
+func (m *engineMock) ExecutionBlockByHash(_ context.Context, hash common.Hash, _ bool) (*pb.ExecutionBlock, error) {
 	b, ok := m.powBlocks[bytesutil.ToBytes32(hash.Bytes())]
 	if !ok {
 		return nil, nil
@@ -95,8 +97,14 @@ func (m *engineMock) ExecutionBlockByHash(_ context.Context, hash common.Hash) (
 	td := new(big.Int).SetBytes(bytesutil.ReverseByteOrder(b.TotalDifficulty))
 	tdHex := hexutil.EncodeBig(td)
 	return &pb.ExecutionBlock{
-		ParentHash:      b.ParentHash,
+		Header: gethtypes.Header{
+			ParentHash: common.BytesToHash(b.ParentHash),
+		},
 		TotalDifficulty: tdHex,
-		Hash:            b.BlockHash,
+		Hash:            common.BytesToHash(b.BlockHash),
 	}, nil
+}
+
+func (m *engineMock) GetTerminalBlockHash(context.Context, uint64) ([]byte, bool, error) {
+	return nil, false, nil
 }

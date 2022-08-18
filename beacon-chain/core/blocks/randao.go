@@ -4,12 +4,12 @@ import (
 	"context"
 
 	"github.com/pkg/errors"
-	"github.com/prysmaticlabs/prysm/beacon-chain/core/helpers"
-	"github.com/prysmaticlabs/prysm/beacon-chain/state"
-	"github.com/prysmaticlabs/prysm/config/params"
-	"github.com/prysmaticlabs/prysm/crypto/hash"
-	"github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1/block"
-	"github.com/prysmaticlabs/prysm/time/slots"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/state"
+	"github.com/prysmaticlabs/prysm/v3/config/params"
+	"github.com/prysmaticlabs/prysm/v3/consensus-types/blocks"
+	"github.com/prysmaticlabs/prysm/v3/consensus-types/interfaces"
+	"github.com/prysmaticlabs/prysm/v3/crypto/hash"
+	"github.com/prysmaticlabs/prysm/v3/time/slots"
 )
 
 // ProcessRandao checks the block proposer's
@@ -29,9 +29,9 @@ import (
 func ProcessRandao(
 	ctx context.Context,
 	beaconState state.BeaconState,
-	b block.SignedBeaconBlock,
+	b interfaces.SignedBeaconBlock,
 ) (state.BeaconState, error) {
-	if err := helpers.BeaconBlockIsNil(b); err != nil {
+	if err := blocks.BeaconBlockIsNil(b); err != nil {
 		return nil, err
 	}
 	body := b.Block().Body()
@@ -73,7 +73,7 @@ func ProcessRandaoNoVerify(
 	}
 	blockRandaoReveal := hash.Hash(randaoReveal)
 	if len(blockRandaoReveal) != len(latestMixSlice) {
-		return nil, errors.New("blockRandaoReveal length doesnt match latestMixSlice length")
+		return nil, errors.New("blockRandaoReveal length doesn't match latestMixSlice length")
 	}
 	for i, x := range blockRandaoReveal {
 		latestMixSlice[i] ^= x

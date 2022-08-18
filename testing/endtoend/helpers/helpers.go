@@ -7,20 +7,21 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
+	"net"
 	"net/http"
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/prysmaticlabs/prysm/config/params"
-	eth "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
-	e2e "github.com/prysmaticlabs/prysm/testing/endtoend/params"
-	e2etypes "github.com/prysmaticlabs/prysm/testing/endtoend/types"
-	"github.com/prysmaticlabs/prysm/time/slots"
+	"github.com/prysmaticlabs/prysm/v3/config/params"
+	eth "github.com/prysmaticlabs/prysm/v3/proto/prysm/v1alpha1"
+	e2e "github.com/prysmaticlabs/prysm/v3/testing/endtoend/params"
+	e2etypes "github.com/prysmaticlabs/prysm/v3/testing/endtoend/types"
+	"github.com/prysmaticlabs/prysm/v3/time/slots"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
@@ -70,7 +71,7 @@ func WaitForTextInFile(file *os.File, text string) error {
 	for {
 		select {
 		case <-ctx.Done():
-			contents, err := ioutil.ReadAll(file)
+			contents, err := io.ReadAll(file)
 			if err != nil {
 				return err
 			}
@@ -108,7 +109,7 @@ func FindFollowingTextInFile(file *os.File, text string) (string, error) {
 	for {
 		select {
 		case <-ctx.Done():
-			contents, err := ioutil.ReadAll(file)
+			contents, err := io.ReadAll(file)
 			if err != nil {
 				return "", err
 			}
@@ -146,13 +147,13 @@ func FindFollowingTextInFile(file *os.File, text string) (string, error) {
 // GraffitiYamlFile outputs graffiti YAML file into a testing directory.
 func GraffitiYamlFile(testDir string) (string, error) {
 	b := []byte(`default: "Rice"
-random: 
+random:
   - "Sushi"
   - "Ramen"
   - "Takoyaki"
 `)
 	f := filepath.Join(testDir, "graffiti.yaml")
-	if err := ioutil.WriteFile(f, b, os.ModePerm); err != nil {
+	if err := os.WriteFile(f, b, os.ModePerm); err != nil {
 		return "", err
 	}
 	return f, nil
@@ -222,7 +223,7 @@ func writeURLRespAtPath(url, fp string) error {
 		}
 	}()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
@@ -268,6 +269,16 @@ func NewLocalConnections(ctx context.Context, numConns int) ([]*grpc.ClientConn,
 			}
 		}
 	}, nil
+}
+
+// BeaconAPIHostnames constructs a hostname:port string for the
+func BeaconAPIHostnames(numConns int) []string {
+	hostnames := make([]string, 0)
+	for i := 0; i < numConns; i++ {
+		port := e2e.TestParams.Ports.PrysmBeaconNodeGatewayPort + i
+		hostnames = append(hostnames, net.JoinHostPort("127.0.0.1", strconv.Itoa(port)))
+	}
+	return hostnames
 }
 
 // ComponentsStarted checks, sequentially, each provided component, blocks until all of the components are ready.

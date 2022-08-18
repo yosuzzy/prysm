@@ -5,22 +5,15 @@ import (
 	"context"
 	"testing"
 
-	"github.com/prysmaticlabs/prysm/beacon-chain/state"
-	v1 "github.com/prysmaticlabs/prysm/beacon-chain/state/v1"
-	"github.com/prysmaticlabs/prysm/config/features"
-	"github.com/prysmaticlabs/prysm/config/params"
-	"github.com/prysmaticlabs/prysm/encoding/bytesutil"
-	ethpb "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
-	"github.com/prysmaticlabs/prysm/testing/assert"
-	"github.com/prysmaticlabs/prysm/testing/require"
-	"github.com/prysmaticlabs/prysm/testing/util"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/state"
+	v1 "github.com/prysmaticlabs/prysm/v3/beacon-chain/state/v1"
+	"github.com/prysmaticlabs/prysm/v3/config/params"
+	"github.com/prysmaticlabs/prysm/v3/encoding/bytesutil"
+	ethpb "github.com/prysmaticlabs/prysm/v3/proto/prysm/v1alpha1"
+	"github.com/prysmaticlabs/prysm/v3/testing/assert"
+	"github.com/prysmaticlabs/prysm/v3/testing/require"
+	"github.com/prysmaticlabs/prysm/v3/testing/util"
 )
-
-func TestMain(m *testing.M) {
-	resetCfg := features.InitWithReset(&features.Flags{EnableBalanceTrieComputation: true})
-	defer resetCfg()
-	m.Run()
-}
 
 func TestInitializeFromProto(t *testing.T) {
 	testState, _ := util.DeterministicGenesisState(t, 64)
@@ -275,4 +268,71 @@ func TestBeaconState_AppendValidator_DoesntMutateCopy(t *testing.T) {
 	assert.Equal(t, originalCount, st1.NumValidators(), "st1 NumValidators mutated")
 	_, ok := st1.ValidatorIndexByPubkey(bytesutil.ToBytes48(val.PublicKey))
 	assert.Equal(t, false, ok, "Expected no validator index to be present in st1 for the newly inserted pubkey")
+}
+
+func TestBeaconState_ValidatorMutation_Phase0(t *testing.T) {
+	testState, _ := util.DeterministicGenesisState(t, 400)
+	pbState, err := v1.ProtobufBeaconState(testState.InnerStateUnsafe())
+	require.NoError(t, err)
+	testState, err = v1.InitializeFromProto(pbState)
+	require.NoError(t, err)
+
+	_, err = testState.HashTreeRoot(context.Background())
+	require.NoError(t, err)
+
+	// Reset tries
+	require.NoError(t, testState.UpdateValidatorAtIndex(200, new(ethpb.Validator)))
+	_, err = testState.HashTreeRoot(context.Background())
+	require.NoError(t, err)
+
+	newState1 := testState.Copy()
+	_ = testState.Copy()
+
+	require.NoError(t, testState.UpdateValidatorAtIndex(15, &ethpb.Validator{
+		PublicKey:                  make([]byte, 48),
+		WithdrawalCredentials:      make([]byte, 32),
+		EffectiveBalance:           1111,
+		Slashed:                    false,
+		ActivationEligibilityEpoch: 1112,
+		ActivationEpoch:            1114,
+		ExitEpoch:                  1116,
+		WithdrawableEpoch:          1117,
+	}))
+
+	rt, err := testState.HashTreeRoot(context.Background())
+	require.NoError(t, err)
+	pbState, err = v1.ProtobufBeaconState(testState.InnerStateUnsafe())
+	require.NoError(t, err)
+
+	copiedTestState, err := v1.InitializeFromProto(pbState)
+	require.NoError(t, err)
+
+	rt2, err := copiedTestState.HashTreeRoot(context.Background())
+	require.NoError(t, err)
+
+	assert.Equal(t, rt, rt2)
+
+	require.NoError(t, newState1.UpdateValidatorAtIndex(150, &ethpb.Validator{
+		PublicKey:                  make([]byte, 48),
+		WithdrawalCredentials:      make([]byte, 32),
+		EffectiveBalance:           2111,
+		Slashed:                    false,
+		ActivationEligibilityEpoch: 2112,
+		ActivationEpoch:            2114,
+		ExitEpoch:                  2116,
+		WithdrawableEpoch:          2117,
+	}))
+
+	rt, err = newState1.HashTreeRoot(context.Background())
+	require.NoError(t, err)
+	pbState, err = v1.ProtobufBeaconState(newState1.InnerStateUnsafe())
+	require.NoError(t, err)
+
+	copiedTestState, err = v1.InitializeFromProto(pbState)
+	require.NoError(t, err)
+
+	rt2, err = copiedTestState.HashTreeRoot(context.Background())
+	require.NoError(t, err)
+
+	assert.Equal(t, rt, rt2)
 }

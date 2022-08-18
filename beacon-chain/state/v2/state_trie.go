@@ -6,36 +6,36 @@ import (
 	"sort"
 
 	"github.com/pkg/errors"
-	"github.com/prysmaticlabs/prysm/beacon-chain/state"
-	"github.com/prysmaticlabs/prysm/beacon-chain/state/fieldtrie"
-	statenative "github.com/prysmaticlabs/prysm/beacon-chain/state/state-native/v2"
-	"github.com/prysmaticlabs/prysm/beacon-chain/state/stateutil"
-	"github.com/prysmaticlabs/prysm/beacon-chain/state/types"
-	"github.com/prysmaticlabs/prysm/config/features"
-	fieldparams "github.com/prysmaticlabs/prysm/config/fieldparams"
-	"github.com/prysmaticlabs/prysm/config/params"
-	"github.com/prysmaticlabs/prysm/container/slice"
-	"github.com/prysmaticlabs/prysm/crypto/hash"
-	"github.com/prysmaticlabs/prysm/encoding/bytesutil"
-	"github.com/prysmaticlabs/prysm/encoding/ssz"
-	ethpb "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/state"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/state/fieldtrie"
+	statenative "github.com/prysmaticlabs/prysm/v3/beacon-chain/state/state-native"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/state/stateutil"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/state/types"
+	"github.com/prysmaticlabs/prysm/v3/config/features"
+	fieldparams "github.com/prysmaticlabs/prysm/v3/config/fieldparams"
+	"github.com/prysmaticlabs/prysm/v3/config/params"
+	"github.com/prysmaticlabs/prysm/v3/container/slice"
+	"github.com/prysmaticlabs/prysm/v3/crypto/hash"
+	"github.com/prysmaticlabs/prysm/v3/encoding/bytesutil"
+	"github.com/prysmaticlabs/prysm/v3/encoding/ssz"
+	ethpb "github.com/prysmaticlabs/prysm/v3/proto/prysm/v1alpha1"
 	"go.opencensus.io/trace"
 	"google.golang.org/protobuf/proto"
 )
 
 // InitializeFromProto the beacon state from a protobuf representation.
-func InitializeFromProto(st *ethpb.BeaconStateAltair) (state.BeaconStateAltair, error) {
+func InitializeFromProto(st *ethpb.BeaconStateAltair) (state.BeaconState, error) {
 	if features.Get().EnableNativeState {
-		return statenative.InitializeFromProtoUnsafe(proto.Clone(st).(*ethpb.BeaconStateAltair))
+		return statenative.InitializeFromProtoAltair(proto.Clone(st).(*ethpb.BeaconStateAltair))
 	}
 	return InitializeFromProtoUnsafe(proto.Clone(st).(*ethpb.BeaconStateAltair))
 }
 
 // InitializeFromProtoUnsafe directly uses the beacon state protobuf pointer
 // and sets it as the inner state of the BeaconState type.
-func InitializeFromProtoUnsafe(st *ethpb.BeaconStateAltair) (state.BeaconStateAltair, error) {
+func InitializeFromProtoUnsafe(st *ethpb.BeaconStateAltair) (state.BeaconState, error) {
 	if features.Get().EnableNativeState {
-		return statenative.InitializeFromProtoUnsafe(st)
+		return statenative.InitializeFromProtoUnsafeAltair(st)
 	}
 
 	if st == nil {
@@ -78,6 +78,8 @@ func InitializeFromProtoUnsafe(st *ethpb.BeaconStateAltair) (state.BeaconStateAl
 	b.sharedFieldReferences[historicalRoots] = stateutil.NewRef(1)
 
 	state.StateCount.Inc()
+	// Finalizer runs when dst is being destroyed in garbage collection.
+	runtime.SetFinalizer(b, finalizerCleanup)
 	return b, nil
 }
 
@@ -179,23 +181,7 @@ func (b *BeaconState) Copy() state.BeaconState {
 
 	state.StateCount.Inc()
 	// Finalizer runs when dst is being destroyed in garbage collection.
-	runtime.SetFinalizer(dst, func(b *BeaconState) {
-		for field, v := range b.sharedFieldReferences {
-			v.MinusRef()
-			if b.stateFieldLeaves[field].FieldReference() != nil {
-				b.stateFieldLeaves[field].FieldReference().MinusRef()
-			}
-		}
-		for i := 0; i < fieldCount; i++ {
-			field := types.FieldIndex(i)
-			delete(b.stateFieldLeaves, field)
-			delete(b.dirtyIndices, field)
-			delete(b.dirtyFields, field)
-			delete(b.sharedFieldReferences, field)
-			delete(b.stateFieldLeaves, field)
-		}
-		state.StateCount.Sub(1)
-	})
+	runtime.SetFinalizer(dst, finalizerCleanup)
 
 	return dst
 }
@@ -203,7 +189,7 @@ func (b *BeaconState) Copy() state.BeaconState {
 // HashTreeRoot of the beacon state retrieves the Merkle root of the trie
 // representation of the beacon state based on the eth2 Simple Serialize specification.
 func (b *BeaconState) HashTreeRoot(ctx context.Context) ([32]byte, error) {
-	_, span := trace.StartSpan(ctx, "beaconStateAltair.HashTreeRoot")
+	ctx, span := trace.StartSpan(ctx, "beaconStateAltair.HashTreeRoot")
 	defer span.End()
 
 	b.lock.Lock()
@@ -218,6 +204,7 @@ func (b *BeaconState) HashTreeRoot(ctx context.Context) ([32]byte, error) {
 }
 
 // Initializes the Merkle layers for the beacon state if they are empty.
+//
 // WARNING: Caller must acquire the mutex before using.
 func (b *BeaconState) initializeMerkleLayers(ctx context.Context) error {
 	if len(b.merkleLayers) > 0 {
@@ -234,6 +221,7 @@ func (b *BeaconState) initializeMerkleLayers(ctx context.Context) error {
 }
 
 // Recomputes the Merkle layers for the dirty fields in the state.
+//
 // WARNING: Caller must acquire the mutex before using.
 func (b *BeaconState) recomputeDirtyFields(ctx context.Context) error {
 	for field := range b.dirtyFields {
@@ -275,7 +263,7 @@ func (b *BeaconState) IsNil() bool {
 }
 
 func (b *BeaconState) rootSelector(ctx context.Context, field types.FieldIndex) ([32]byte, error) {
-	_, span := trace.StartSpan(ctx, "beaconState.rootSelector")
+	ctx, span := trace.StartSpan(ctx, "beaconState.rootSelector")
 	defer span.End()
 	span.AddAttributes(trace.StringAttribute("field", field.String(b.Version())))
 
@@ -342,21 +330,18 @@ func (b *BeaconState) rootSelector(ctx context.Context, field types.FieldIndex) 
 		}
 		return b.recomputeFieldTrie(validators, b.state.Validators)
 	case balances:
-		if features.Get().EnableBalanceTrieComputation {
-			if b.rebuildTrie[field] {
-				maxBalCap := uint64(fieldparams.ValidatorRegistryLimit)
-				elemSize := uint64(8)
-				balLimit := (maxBalCap*elemSize + 31) / 32
-				err := b.resetFieldTrie(field, b.state.Balances, balLimit)
-				if err != nil {
-					return [32]byte{}, err
-				}
-				delete(b.rebuildTrie, field)
-				return b.stateFieldLeaves[field].TrieRoot()
+		if b.rebuildTrie[field] {
+			maxBalCap := uint64(fieldparams.ValidatorRegistryLimit)
+			elemSize := uint64(8)
+			balLimit := (maxBalCap*elemSize + 31) / 32
+			err := b.resetFieldTrie(field, b.state.Balances, balLimit)
+			if err != nil {
+				return [32]byte{}, err
 			}
-			return b.recomputeFieldTrie(balances, b.state.Balances)
+			delete(b.rebuildTrie, field)
+			return b.stateFieldLeaves[field].TrieRoot()
 		}
-		return stateutil.Uint64ListRootWithRegistryLimit(b.state.Balances)
+		return b.recomputeFieldTrie(balances, b.state.Balances)
 	case randaoMixes:
 		if b.rebuildTrie[field] {
 			err := b.resetFieldTrie(field, b.state.RandaoMixes, fieldparams.RandaoMixesLength)
@@ -393,17 +378,31 @@ func (b *BeaconState) rootSelector(ctx context.Context, field types.FieldIndex) 
 
 func (b *BeaconState) recomputeFieldTrie(index types.FieldIndex, elements interface{}) ([32]byte, error) {
 	fTrie := b.stateFieldLeaves[index]
+	fTrieMutex := fTrie.RWMutex
 	// We can't lock the trie directly because the trie's variable gets reassigned,
 	// and therefore we would call Unlock() on a different object.
-	fTrieMutex := fTrie.RWMutex
-	if fTrie.FieldReference().Refs() > 1 {
-		fTrieMutex.Lock()
+	fTrieMutex.Lock()
+
+	if fTrie.Empty() {
+		err := b.resetFieldTrie(index, elements, fTrie.Length())
+		if err != nil {
+			fTrieMutex.Unlock()
+			return [32]byte{}, err
+		}
+		// Reduce reference count as we are instantiating a new trie.
 		fTrie.FieldReference().MinusRef()
-		newTrie := fTrie.CopyTrie()
+		fTrieMutex.Unlock()
+		return b.stateFieldLeaves[index].TrieRoot()
+	}
+
+	if fTrie.FieldReference().Refs() > 1 {
+		fTrie.FieldReference().MinusRef()
+		newTrie := fTrie.TransferTrie()
 		b.stateFieldLeaves[index] = newTrie
 		fTrie = newTrie
-		fTrieMutex.Unlock()
 	}
+	fTrieMutex.Unlock()
+
 	// remove duplicate indexes
 	b.dirtyIndices[index] = slice.SetUint64(b.dirtyIndices[index])
 	// sort indexes again
@@ -426,4 +425,23 @@ func (b *BeaconState) resetFieldTrie(index types.FieldIndex, elements interface{
 	b.stateFieldLeaves[index] = fTrie
 	b.dirtyIndices[index] = []uint64{}
 	return nil
+}
+
+func finalizerCleanup(b *BeaconState) {
+	fieldCount := params.BeaconConfig().BeaconStateAltairFieldCount
+	for field, v := range b.sharedFieldReferences {
+		v.MinusRef()
+		if b.stateFieldLeaves[field].FieldReference() != nil {
+			b.stateFieldLeaves[field].FieldReference().MinusRef()
+		}
+	}
+	for i := 0; i < fieldCount; i++ {
+		field := types.FieldIndex(i)
+		delete(b.stateFieldLeaves, field)
+		delete(b.dirtyIndices, field)
+		delete(b.dirtyFields, field)
+		delete(b.sharedFieldReferences, field)
+		delete(b.stateFieldLeaves, field)
+	}
+	state.StateCount.Sub(1)
 }

@@ -7,10 +7,11 @@ import (
 	"sync"
 	"time"
 
-	types "github.com/prysmaticlabs/eth2-types"
-	"github.com/prysmaticlabs/prysm/validator/accounts/iface"
-	iface2 "github.com/prysmaticlabs/prysm/validator/client/iface"
-	"github.com/prysmaticlabs/prysm/validator/keymanager"
+	types "github.com/prysmaticlabs/prysm/v3/consensus-types/primitives"
+	ethpb "github.com/prysmaticlabs/prysm/v3/proto/prysm/v1alpha1"
+	"github.com/prysmaticlabs/prysm/v3/validator/accounts/iface"
+	iface2 "github.com/prysmaticlabs/prysm/v3/validator/client/iface"
+	"github.com/prysmaticlabs/prysm/v3/validator/keymanager"
 )
 
 // Wallet contains an in-memory, simulated wallet implementation.
@@ -83,6 +84,8 @@ type MockValidator struct {
 	Km keymanager.IKeymanager
 }
 
+func (_ MockValidator) LogSyncCommitteeMessagesSubmitted() {}
+
 func (_ MockValidator) Done() {
 	panic("implement me")
 }
@@ -147,10 +150,6 @@ func (_ MockValidator) LogAttestationsSubmitted() {
 	panic("implement me")
 }
 
-func (_ MockValidator) LogNextDutyTimeLeft(_ types.Slot) error {
-	panic("implement me")
-}
-
 func (_ MockValidator) UpdateDomainDataCaches(_ context.Context, _ types.Slot) {
 	panic("implement me")
 }
@@ -179,12 +178,17 @@ func (_ MockValidator) CheckDoppelGanger(_ context.Context) error {
 	panic("implement me")
 }
 
-// UpdateFeeRecipient for mocking
-func (_ MockValidator) UpdateFeeRecipient(_ context.Context, _ keymanager.IKeymanager) error {
+// PushProposerSettings for mocking
+func (_ MockValidator) PushProposerSettings(_ context.Context, _ keymanager.IKeymanager) error {
 	panic("implement me")
 }
 
 // SetPubKeyToValidatorIndexMap for mocking
 func (_ MockValidator) SetPubKeyToValidatorIndexMap(_ context.Context, _ keymanager.IKeymanager) error {
+	panic("implement me")
+}
+
+// SignValidatorRegistrationRequest for mocking
+func (_ MockValidator) SignValidatorRegistrationRequest(_ context.Context, _ iface2.SigningFunc, _ *ethpb.ValidatorRegistrationV1) (*ethpb.SignedValidatorRegistrationV1, error) {
 	panic("implement me")
 }

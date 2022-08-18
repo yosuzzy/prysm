@@ -10,13 +10,12 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/pkg/errors"
-	types "github.com/prysmaticlabs/eth2-types"
-	"github.com/prysmaticlabs/prysm/beacon-chain/core/helpers"
-	"github.com/prysmaticlabs/prysm/config/params"
-	"github.com/prysmaticlabs/prysm/encoding/bytesutil"
-	enginev1 "github.com/prysmaticlabs/prysm/proto/engine/v1"
-	"github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1/block"
-	"github.com/prysmaticlabs/prysm/time/slots"
+	"github.com/prysmaticlabs/prysm/v3/config/params"
+	"github.com/prysmaticlabs/prysm/v3/consensus-types/blocks"
+	"github.com/prysmaticlabs/prysm/v3/consensus-types/interfaces"
+	types "github.com/prysmaticlabs/prysm/v3/consensus-types/primitives"
+	"github.com/prysmaticlabs/prysm/v3/encoding/bytesutil"
+	"github.com/prysmaticlabs/prysm/v3/time/slots"
 	"github.com/sirupsen/logrus"
 )
 
@@ -37,21 +36,21 @@ import (
 //    assert pow_parent is not None
 //    # Check if `pow_block` is a valid terminal PoW block
 //    assert is_valid_terminal_pow_block(pow_block, pow_parent)
-func (s *Service) validateMergeBlock(ctx context.Context, b block.SignedBeaconBlock) error {
-	if err := helpers.BeaconBlockIsNil(b); err != nil {
+func (s *Service) validateMergeBlock(ctx context.Context, b interfaces.SignedBeaconBlock) error {
+	if err := blocks.BeaconBlockIsNil(b); err != nil {
 		return err
 	}
-	payload, err := b.Block().Body().ExecutionPayload()
+	payload, err := b.Block().Body().Execution()
 	if err != nil {
 		return err
 	}
-	if payload == nil {
+	if payload.IsNil() {
 		return errors.New("nil execution payload")
 	}
 	if err := validateTerminalBlockHash(b.Block().Slot(), payload); err != nil {
 		return errors.Wrap(err, "could not validate terminal block hash")
 	}
-	mergeBlockParentHash, mergeBlockTD, err := s.getBlkParentHashAndTD(ctx, payload.ParentHash)
+	mergeBlockParentHash, mergeBlockTD, err := s.getBlkParentHashAndTD(ctx, payload.ParentHash())
 	if err != nil {
 		return errors.Wrap(err, "could not get merge block parent hash and total difficulty")
 	}
@@ -64,25 +63,28 @@ func (s *Service) validateMergeBlock(ctx context.Context, b block.SignedBeaconBl
 		return err
 	}
 	if !valid {
-		return fmt.Errorf("invalid TTD, configTTD: %s, currentTTD: %s, parentTTD: %s",
+		err := fmt.Errorf("invalid TTD, configTTD: %s, currentTTD: %s, parentTTD: %s",
 			params.BeaconConfig().TerminalTotalDifficulty, mergeBlockTD, mergeBlockParentTD)
+		return invalidBlock{error: err}
 	}
 
 	log.WithFields(logrus.Fields{
 		"slot":                            b.Block().Slot(),
-		"mergeBlockHash":                  common.BytesToHash(payload.ParentHash).String(),
+		"mergeBlockHash":                  common.BytesToHash(payload.ParentHash()).String(),
 		"mergeBlockParentHash":            common.BytesToHash(mergeBlockParentHash).String(),
 		"terminalTotalDifficulty":         params.BeaconConfig().TerminalTotalDifficulty,
 		"mergeBlockTotalDifficulty":       mergeBlockTD,
 		"mergeBlockParentTotalDifficulty": mergeBlockParentTD,
 	}).Info("Validated terminal block")
 
+	log.Info(mergeAsciiArt)
+
 	return nil
 }
 
 // getBlkParentHashAndTD retrieves the parent hash and total difficulty of the given block.
 func (s *Service) getBlkParentHashAndTD(ctx context.Context, blkHash []byte) ([]byte, *uint256.Int, error) {
-	blk, err := s.cfg.ExecutionEngineCaller.ExecutionBlockByHash(ctx, common.BytesToHash(blkHash))
+	blk, err := s.cfg.ExecutionEngineCaller.ExecutionBlockByHash(ctx, common.BytesToHash(blkHash), false /* no txs */)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "could not get pow block")
 	}
@@ -97,7 +99,7 @@ func (s *Service) getBlkParentHashAndTD(ctx context.Context, blkHash []byte) ([]
 	if overflows {
 		return nil, nil, errors.New("total difficulty overflows")
 	}
-	return blk.ParentHash, blkTDUint256, nil
+	return blk.ParentHash[:], blkTDUint256, nil
 }
 
 // validateTerminalBlockHash validates if the merge block is a valid terminal PoW block.
@@ -107,14 +109,14 @@ func (s *Service) getBlkParentHashAndTD(ctx context.Context, blkHash []byte) ([]
 //        assert compute_epoch_at_slot(block.slot) >= TERMINAL_BLOCK_HASH_ACTIVATION_EPOCH
 //        assert block.body.execution_payload.parent_hash == TERMINAL_BLOCK_HASH
 //        return
-func validateTerminalBlockHash(blkSlot types.Slot, payload *enginev1.ExecutionPayload) error {
+func validateTerminalBlockHash(blkSlot types.Slot, payload interfaces.ExecutionData) error {
 	if bytesutil.ToBytes32(params.BeaconConfig().TerminalBlockHash.Bytes()) == [32]byte{} {
 		return nil
 	}
 	if params.BeaconConfig().TerminalBlockHashActivationEpoch > slots.ToEpoch(blkSlot) {
 		return errors.New("terminal block hash activation epoch not reached")
 	}
-	if !bytes.Equal(payload.ParentHash, params.BeaconConfig().TerminalBlockHash.Bytes()) {
+	if !bytes.Equal(payload.ParentHash(), params.BeaconConfig().TerminalBlockHash.Bytes()) {
 		return errors.New("parent hash does not match terminal block hash")
 	}
 	return nil

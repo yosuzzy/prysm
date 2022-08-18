@@ -9,22 +9,22 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	types "github.com/prysmaticlabs/eth2-types"
-	"github.com/prysmaticlabs/prysm/async/event"
-	"github.com/prysmaticlabs/prysm/beacon-chain/core/epoch/precompute"
-	"github.com/prysmaticlabs/prysm/beacon-chain/core/feed"
-	blockfeed "github.com/prysmaticlabs/prysm/beacon-chain/core/feed/block"
-	opfeed "github.com/prysmaticlabs/prysm/beacon-chain/core/feed/operation"
-	statefeed "github.com/prysmaticlabs/prysm/beacon-chain/core/feed/state"
-	"github.com/prysmaticlabs/prysm/beacon-chain/core/helpers"
-	"github.com/prysmaticlabs/prysm/beacon-chain/db"
-	"github.com/prysmaticlabs/prysm/beacon-chain/forkchoice"
-	"github.com/prysmaticlabs/prysm/beacon-chain/state"
-	fieldparams "github.com/prysmaticlabs/prysm/config/fieldparams"
-	"github.com/prysmaticlabs/prysm/config/params"
-	"github.com/prysmaticlabs/prysm/encoding/bytesutil"
-	ethpb "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
-	"github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1/block"
+	"github.com/prysmaticlabs/prysm/v3/async/event"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/core/epoch/precompute"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/core/feed"
+	blockfeed "github.com/prysmaticlabs/prysm/v3/beacon-chain/core/feed/block"
+	opfeed "github.com/prysmaticlabs/prysm/v3/beacon-chain/core/feed/operation"
+	statefeed "github.com/prysmaticlabs/prysm/v3/beacon-chain/core/feed/state"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/core/helpers"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/db"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/forkchoice"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/state"
+	fieldparams "github.com/prysmaticlabs/prysm/v3/config/fieldparams"
+	"github.com/prysmaticlabs/prysm/v3/config/params"
+	"github.com/prysmaticlabs/prysm/v3/consensus-types/interfaces"
+	types "github.com/prysmaticlabs/prysm/v3/consensus-types/primitives"
+	"github.com/prysmaticlabs/prysm/v3/encoding/bytesutil"
+	ethpb "github.com/prysmaticlabs/prysm/v3/proto/prysm/v1alpha1"
 	"github.com/sirupsen/logrus"
 )
 
@@ -47,10 +47,10 @@ type ChainService struct {
 	InitSyncBlockRoots          map[[32]byte]bool
 	DB                          db.Database
 	State                       state.BeaconState
-	Block                       block.SignedBeaconBlock
+	Block                       interfaces.SignedBeaconBlock
 	VerifyBlkDescendantErr      error
 	stateNotifier               statefeed.Notifier
-	BlocksReceived              []block.SignedBeaconBlock
+	BlocksReceived              []interfaces.SignedBeaconBlock
 	SyncCommitteeIndices        []types.CommitteeIndex
 	blockNotifier               blockfeed.Notifier
 	opNotifier                  opfeed.Notifier
@@ -62,6 +62,8 @@ type ChainService struct {
 	Genesis                     time.Time
 	ForkChoiceStore             forkchoice.ForkChoicer
 	ReceiveBlockMockErr         error
+	OptimisticCheckRootReceived [32]byte
+	FinalizedRoots              map[[32]byte]bool
 }
 
 // ForkChoicer mocks the same method in the chain service
@@ -129,13 +131,16 @@ func (msn *MockStateNotifier) StateFeed() *event.Feed {
 			sub := msn.feed.Subscribe(msn.recvCh)
 
 			go func() {
-				select {
-				case evt := <-msn.recvCh:
-					msn.recvLock.Lock()
-					msn.recv = append(msn.recv, evt)
-					msn.recvLock.Unlock()
-				case <-sub.Err():
-					sub.Unsubscribe()
+				for {
+					select {
+					case evt := <-msn.recvCh:
+						msn.recvLock.Lock()
+						msn.recv = append(msn.recv, evt)
+						msn.recvLock.Unlock()
+					case <-sub.Err():
+						sub.Unsubscribe()
+						return
+					}
 				}
 			}()
 		}
@@ -165,7 +170,7 @@ func (mon *MockOperationNotifier) OperationFeed() *event.Feed {
 }
 
 // ReceiveBlockInitialSync mocks ReceiveBlockInitialSync method in chain service.
-func (s *ChainService) ReceiveBlockInitialSync(ctx context.Context, block block.SignedBeaconBlock, _ [32]byte) error {
+func (s *ChainService) ReceiveBlockInitialSync(ctx context.Context, block interfaces.SignedBeaconBlock, _ [32]byte) error {
 	if s.State == nil {
 		return ErrNilState
 	}
@@ -192,7 +197,7 @@ func (s *ChainService) ReceiveBlockInitialSync(ctx context.Context, block block.
 }
 
 // ReceiveBlockBatch processes blocks in batches from initial-sync.
-func (s *ChainService) ReceiveBlockBatch(ctx context.Context, blks []block.SignedBeaconBlock, _ [][32]byte) error {
+func (s *ChainService) ReceiveBlockBatch(ctx context.Context, blks []interfaces.SignedBeaconBlock, _ [][32]byte) error {
 	if s.State == nil {
 		return ErrNilState
 	}
@@ -221,7 +226,7 @@ func (s *ChainService) ReceiveBlockBatch(ctx context.Context, blks []block.Signe
 }
 
 // ReceiveBlock mocks ReceiveBlock method in chain service.
-func (s *ChainService) ReceiveBlock(ctx context.Context, block block.SignedBeaconBlock, _ [32]byte) error {
+func (s *ChainService) ReceiveBlock(ctx context.Context, block interfaces.SignedBeaconBlock, _ [32]byte) error {
 	if s.ReceiveBlockMockErr != nil {
 		return s.ReceiveBlockMockErr
 	}
@@ -267,7 +272,7 @@ func (s *ChainService) HeadRoot(_ context.Context) ([]byte, error) {
 }
 
 // HeadBlock mocks HeadBlock method in chain service.
-func (s *ChainService) HeadBlock(context.Context) (block.SignedBeaconBlock, error) {
+func (s *ChainService) HeadBlock(context.Context) (interfaces.SignedBeaconBlock, error) {
 	return s.Block, nil
 }
 
@@ -301,11 +306,6 @@ func (_ *ChainService) ReceiveAttestation(_ context.Context, _ *ethpb.Attestatio
 	return nil
 }
 
-// ReceiveAttestationNoPubsub mocks ReceiveAttestationNoPubsub method in chain service.
-func (_ *ChainService) ReceiveAttestationNoPubsub(context.Context, *ethpb.Attestation) error {
-	return nil
-}
-
 // AttestationTargetState mocks AttestationTargetState method in chain service.
 func (s *ChainService) AttestationTargetState(_ context.Context, _ *ethpb.Checkpoint) (state.BeaconState, error) {
 	return s.State, nil
@@ -317,11 +317,6 @@ func (s *ChainService) HeadValidatorsIndices(ctx context.Context, epoch types.Ep
 		return []types.ValidatorIndex{}, nil
 	}
 	return helpers.ActiveValidatorIndices(ctx, s.State, epoch)
-}
-
-// HeadSeed mocks the same method in the chain service.
-func (s *ChainService) HeadSeed(_ context.Context, epoch types.Epoch) ([32]byte, error) {
-	return helpers.Seed(s.State, epoch, params.BeaconConfig().DomainBeaconAttester)
 }
 
 // HeadETH1Data provides the current ETH1Data of the head state.
@@ -367,8 +362,14 @@ func (s *ChainService) IsCanonical(_ context.Context, r [32]byte) (bool, error) 
 	return true, nil
 }
 
-// HasInitSyncBlock mocks the same method in the chain service.
-func (s *ChainService) HasInitSyncBlock(rt [32]byte) bool {
+// HasBlock mocks the same method in the chain service.
+func (s *ChainService) HasBlock(ctx context.Context, rt [32]byte) bool {
+	if s.DB == nil {
+		return false
+	}
+	if s.DB.HasBlock(ctx, rt) {
+		return true
+	}
 	if s.InitSyncBlockRoots == nil {
 		return false
 	}
@@ -380,8 +381,8 @@ func (_ *ChainService) HeadGenesisValidatorsRoot() [32]byte {
 	return [32]byte{}
 }
 
-// VerifyBlkDescendant mocks VerifyBlkDescendant and always returns nil.
-func (s *ChainService) VerifyBlkDescendant(_ context.Context, _ [32]byte) error {
+// VerifyFinalizedBlkDescendant mocks VerifyBlkDescendant and always returns nil.
+func (s *ChainService) VerifyFinalizedBlkDescendant(_ context.Context, _ [32]byte) error {
 	return s.VerifyBlkDescendantErr
 }
 
@@ -451,6 +452,18 @@ func (s *ChainService) IsOptimistic(_ context.Context) (bool, error) {
 }
 
 // IsOptimisticForRoot mocks the same method in the chain service.
-func (s *ChainService) IsOptimisticForRoot(_ context.Context, _ [32]byte) (bool, error) {
+func (s *ChainService) IsOptimisticForRoot(_ context.Context, root [32]byte) (bool, error) {
+	s.OptimisticCheckRootReceived = root
 	return s.Optimistic, nil
+}
+
+// UpdateHead mocks the same method in the chain service.
+func (s *ChainService) UpdateHead(_ context.Context) error { return nil }
+
+// ReceiveAttesterSlashing mocks the same method in the chain service.
+func (s *ChainService) ReceiveAttesterSlashing(context.Context, *ethpb.AttesterSlashing) {}
+
+// IsFinalized mocks the same method in the chain service.
+func (s *ChainService) IsFinalized(_ context.Context, blockRoot [32]byte) bool {
+	return s.FinalizedRoots[blockRoot]
 }

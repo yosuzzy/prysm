@@ -3,8 +3,9 @@ package protoarray
 import (
 	"context"
 
-	"github.com/prysmaticlabs/prysm/config/params"
-	pmath "github.com/prysmaticlabs/prysm/math"
+	"github.com/prysmaticlabs/prysm/v3/config/params"
+	types "github.com/prysmaticlabs/prysm/v3/consensus-types/primitives"
+	pmath "github.com/prysmaticlabs/prysm/v3/math"
 	"go.opencensus.io/trace"
 )
 
@@ -12,16 +13,22 @@ import (
 // It returns a list of deltas that represents the difference between old balances and new balances.
 func computeDeltas(
 	ctx context.Context,
+	count int,
 	blockIndices map[[32]byte]uint64,
 	votes []Vote,
 	oldBalances, newBalances []uint64,
+	slashedIndices map[types.ValidatorIndex]bool,
 ) ([]int, []Vote, error) {
-	_, span := trace.StartSpan(ctx, "doublyLinkedForkchoice.computeDeltas")
+	ctx, span := trace.StartSpan(ctx, "doublyLinkedForkchoice.computeDeltas")
 	defer span.End()
 
-	deltas := make([]int, len(blockIndices))
+	deltas := make([]int, count)
 
 	for validatorIndex, vote := range votes {
+		// Skip if validator has been slashed
+		if slashedIndices[types.ValidatorIndex(validatorIndex)] {
+			continue
+		}
 		oldBalance := uint64(0)
 		newBalance := uint64(0)
 
@@ -85,12 +92,9 @@ func copyNode(node *Node) *Node {
 		return &Node{}
 	}
 
-	copiedRoot := [32]byte{}
-	copy(copiedRoot[:], node.root[:])
-
 	return &Node{
 		slot:           node.slot,
-		root:           copiedRoot,
+		root:           node.root,
 		parent:         node.parent,
 		payloadHash:    node.payloadHash,
 		justifiedEpoch: node.justifiedEpoch,
@@ -98,5 +102,6 @@ func copyNode(node *Node) *Node {
 		weight:         node.weight,
 		bestChild:      node.bestChild,
 		bestDescendant: node.bestDescendant,
+		status:         node.status,
 	}
 }

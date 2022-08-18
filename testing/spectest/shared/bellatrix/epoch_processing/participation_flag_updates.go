@@ -4,10 +4,10 @@ import (
 	"path"
 	"testing"
 
-	"github.com/prysmaticlabs/prysm/beacon-chain/core/altair"
-	"github.com/prysmaticlabs/prysm/beacon-chain/state"
-	"github.com/prysmaticlabs/prysm/testing/require"
-	"github.com/prysmaticlabs/prysm/testing/spectest/utils"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/core/altair"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/state"
+	"github.com/prysmaticlabs/prysm/v3/testing/require"
+	"github.com/prysmaticlabs/prysm/v3/testing/spectest/utils"
 )
 
 // RunParticipationFlagUpdatesTests executes "epoch_processing/participation_flag_updates" tests.
@@ -23,8 +23,8 @@ func RunParticipationFlagUpdatesTests(t *testing.T, config string) {
 	}
 }
 
-func processParticipationFlagUpdatesWrapper(t *testing.T, state state.BeaconState) (state.BeaconState, error) {
-	state, err := altair.ProcessParticipationFlagUpdates(state)
+func processParticipationFlagUpdatesWrapper(t *testing.T, st state.BeaconState) (state.BeaconState, error) {
+	st, err := altair.ProcessParticipationFlagUpdates(st)
 	require.NoError(t, err, "Could not process participation flag update")
-	return state, nil
+	return st, nil
 }

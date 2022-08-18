@@ -9,16 +9,16 @@ import (
 	"github.com/kevinms/leakybucket-go"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/pkg/errors"
-	types "github.com/prysmaticlabs/eth2-types"
-	"github.com/prysmaticlabs/prysm/beacon-chain/db"
-	"github.com/prysmaticlabs/prysm/beacon-chain/p2p"
-	p2pTypes "github.com/prysmaticlabs/prysm/beacon-chain/p2p/types"
-	prysmsync "github.com/prysmaticlabs/prysm/beacon-chain/sync"
-	"github.com/prysmaticlabs/prysm/cmd/beacon-chain/flags"
-	"github.com/prysmaticlabs/prysm/config/params"
-	"github.com/prysmaticlabs/prysm/crypto/rand"
-	p2ppb "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
-	"github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1/block"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/db"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/p2p"
+	p2pTypes "github.com/prysmaticlabs/prysm/v3/beacon-chain/p2p/types"
+	prysmsync "github.com/prysmaticlabs/prysm/v3/beacon-chain/sync"
+	"github.com/prysmaticlabs/prysm/v3/cmd/beacon-chain/flags"
+	"github.com/prysmaticlabs/prysm/v3/config/params"
+	"github.com/prysmaticlabs/prysm/v3/consensus-types/interfaces"
+	types "github.com/prysmaticlabs/prysm/v3/consensus-types/primitives"
+	"github.com/prysmaticlabs/prysm/v3/crypto/rand"
+	p2ppb "github.com/prysmaticlabs/prysm/v3/proto/prysm/v1alpha1"
 	"github.com/sirupsen/logrus"
 	"go.opencensus.io/trace"
 )
@@ -103,7 +103,7 @@ type fetchRequestResponse struct {
 	pid    peer.ID
 	start  types.Slot
 	count  uint64
-	blocks []block.SignedBeaconBlock
+	blocks []interfaces.SignedBeaconBlock
 	err    error
 }
 
@@ -244,7 +244,7 @@ func (f *blocksFetcher) handleRequest(ctx context.Context, start types.Slot, cou
 	response := &fetchRequestResponse{
 		start:  start,
 		count:  count,
-		blocks: []block.SignedBeaconBlock{},
+		blocks: []interfaces.SignedBeaconBlock{},
 		err:    nil,
 	}
 
@@ -278,7 +278,7 @@ func (f *blocksFetcher) fetchBlocksFromPeer(
 	ctx context.Context,
 	start types.Slot, count uint64,
 	peers []peer.ID,
-) ([]block.SignedBeaconBlock, peer.ID, error) {
+) ([]interfaces.SignedBeaconBlock, peer.ID, error) {
 	ctx, span := trace.StartSpan(ctx, "initialsync.fetchBlocksFromPeer")
 	defer span.End()
 
@@ -289,9 +289,12 @@ func (f *blocksFetcher) fetchBlocksFromPeer(
 		Step:      1,
 	}
 	for i := 0; i < len(peers); i++ {
-		if blocks, err := f.requestBlocks(ctx, req, peers[i]); err == nil {
+		blocks, err := f.requestBlocks(ctx, req, peers[i])
+		if err == nil {
 			f.p2p.Peers().Scorers().BlockProviderScorer().Touch(peers[i])
 			return blocks, peers[i], err
+		} else {
+			log.WithError(err).Debug("Could not request blocks by range")
 		}
 	}
 	return nil, "", errNoPeersAvailable
@@ -302,7 +305,7 @@ func (f *blocksFetcher) requestBlocks(
 	ctx context.Context,
 	req *p2ppb.BeaconBlocksByRangeRequest,
 	pid peer.ID,
-) ([]block.SignedBeaconBlock, error) {
+) ([]interfaces.SignedBeaconBlock, error) {
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
@@ -318,6 +321,7 @@ func (f *blocksFetcher) requestBlocks(
 	}).Debug("Requesting blocks")
 	if f.rateLimiter.Remaining(pid.String()) < int64(req.Count) {
 		if err := f.waitForBandwidth(pid); err != nil {
+			l.Unlock()
 			return nil, err
 		}
 	}
@@ -331,7 +335,7 @@ func (f *blocksFetcher) requestBlocksByRoot(
 	ctx context.Context,
 	req *p2pTypes.BeaconBlockByRootsReq,
 	pid peer.ID,
-) ([]block.SignedBeaconBlock, error) {
+) ([]interfaces.SignedBeaconBlock, error) {
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
@@ -345,6 +349,7 @@ func (f *blocksFetcher) requestBlocksByRoot(
 	}).Debug("Requesting blocks (by roots)")
 	if f.rateLimiter.Remaining(pid.String()) < int64(len(*req)) {
 		if err := f.waitForBandwidth(pid); err != nil {
+			l.Unlock()
 			return nil, err
 		}
 	}

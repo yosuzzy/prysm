@@ -5,11 +5,11 @@ import (
 	"sort"
 	"sync"
 
-	types "github.com/prysmaticlabs/eth2-types"
-	"github.com/prysmaticlabs/prysm/beacon-chain/state"
-	"github.com/prysmaticlabs/prysm/config/params"
-	ethpb "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
-	"github.com/prysmaticlabs/prysm/time/slots"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/state"
+	"github.com/prysmaticlabs/prysm/v3/config/params"
+	types "github.com/prysmaticlabs/prysm/v3/consensus-types/primitives"
+	ethpb "github.com/prysmaticlabs/prysm/v3/proto/prysm/v1alpha1"
+	"github.com/prysmaticlabs/prysm/v3/time/slots"
 	"go.opencensus.io/trace"
 )
 
@@ -66,7 +66,7 @@ func (p *Pool) PendingExits(state state.ReadOnlyBeaconState, slot types.Slot, no
 // InsertVoluntaryExit into the pool. This method is a no-op if the pending exit already exists,
 // or the validator is already exited.
 func (p *Pool) InsertVoluntaryExit(ctx context.Context, state state.ReadOnlyBeaconState, exit *ethpb.SignedVoluntaryExit) {
-	_, span := trace.StartSpan(ctx, "exitPool.InsertVoluntaryExit")
+	ctx, span := trace.StartSpan(ctx, "exitPool.InsertVoluntaryExit")
 	defer span.End()
 	p.lock.Lock()
 	defer p.lock.Unlock()

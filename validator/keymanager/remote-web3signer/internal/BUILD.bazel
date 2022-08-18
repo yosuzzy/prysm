@@ -7,7 +7,7 @@ go_library(
         "log.go",
         "metrics.go",
     ],
-    importpath = "github.com/prysmaticlabs/prysm/validator/keymanager/remote-web3signer/internal",
+    importpath = "github.com/prysmaticlabs/prysm/v3/validator/keymanager/remote-web3signer/internal",
     visibility = ["//validator/keymanager/remote-web3signer:__subpackages__"],
     deps = [
         "//config/fieldparams:go_default_library",
@@ -28,6 +28,8 @@ go_test(
     srcs = ["client_test.go"],
     deps = [
         ":go_default_library",
+        "//testing/require:go_default_library",
+        "@com_github_ethereum_go_ethereum//common/hexutil:go_default_library",
         "@com_github_stretchr_testify//assert:go_default_library",
     ],
 )

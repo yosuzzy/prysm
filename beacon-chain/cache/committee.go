@@ -1,5 +1,4 @@
 //go:build !fuzz
-// +build !fuzz
 
 package cache
 
@@ -13,11 +12,11 @@ import (
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	types "github.com/prysmaticlabs/eth2-types"
-	lruwrpr "github.com/prysmaticlabs/prysm/cache/lru"
-	"github.com/prysmaticlabs/prysm/config/params"
-	"github.com/prysmaticlabs/prysm/container/slice"
-	mathutil "github.com/prysmaticlabs/prysm/math"
+	lruwrpr "github.com/prysmaticlabs/prysm/v3/cache/lru"
+	"github.com/prysmaticlabs/prysm/v3/config/params"
+	types "github.com/prysmaticlabs/prysm/v3/consensus-types/primitives"
+	"github.com/prysmaticlabs/prysm/v3/container/slice"
+	mathutil "github.com/prysmaticlabs/prysm/v3/math"
 )
 
 const (
@@ -103,9 +102,12 @@ func (c *CommitteeCache) Committee(ctx context.Context, slot types.Slot, seed [3
 
 // AddCommitteeShuffledList adds Committee shuffled list object to the cache. T
 // his method also trims the least recently list if the cache size has ready the max cache size limit.
-func (c *CommitteeCache) AddCommitteeShuffledList(committees *Committees) error {
+func (c *CommitteeCache) AddCommitteeShuffledList(ctx context.Context, committees *Committees) error {
 	c.lock.Lock()
 	defer c.lock.Unlock()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	key, err := committeeKeyFn(committees)
 	if err != nil {
 		return err

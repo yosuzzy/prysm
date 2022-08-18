@@ -3,13 +3,8 @@ package params
 import (
 	"math"
 
-	"github.com/prysmaticlabs/prysm/encoding/bytesutil"
+	"github.com/prysmaticlabs/prysm/v3/encoding/bytesutil"
 )
-
-// UseMinimalConfig for beacon chain services.
-func UseMinimalConfig() {
-	beaconConfig = MinimalSpecConfig()
-}
 
 // MinimalSpecConfig retrieves the minimal config used in spec tests.
 func MinimalSpecConfig() *BeaconChainConfig {
@@ -34,6 +29,7 @@ func MinimalSpecConfig() *BeaconChainConfig {
 
 	// Initial values
 	minimalConfig.BLSWithdrawalPrefixByte = byte(0)
+	minimalConfig.ETH1AddressWithdrawalPrefixByte = byte(1)
 
 	// Time parameters
 	minimalConfig.SecondsPerSlot = 6
@@ -89,7 +85,9 @@ func MinimalSpecConfig() *BeaconChainConfig {
 	minimalConfig.AltairForkEpoch = math.MaxUint64
 	minimalConfig.BellatrixForkVersion = []byte{2, 0, 0, 1}
 	minimalConfig.BellatrixForkEpoch = math.MaxUint64
-	minimalConfig.ShardingForkVersion = []byte{3, 0, 0, 1}
+	minimalConfig.CapellaForkVersion = []byte{3, 0, 0, 1}
+	minimalConfig.CapellaForkEpoch = math.MaxUint64
+	minimalConfig.ShardingForkVersion = []byte{4, 0, 0, 1}
 	minimalConfig.ShardingForkEpoch = math.MaxUint64
 
 	minimalConfig.SyncCommitteeSize = 32
@@ -100,8 +98,10 @@ func MinimalSpecConfig() *BeaconChainConfig {
 	minimalConfig.DepositChainID = 5   // Chain ID of eth1 goerli.
 	minimalConfig.DepositNetworkID = 5 // Network ID of eth1 goerli.
 	minimalConfig.DepositContractAddress = "0x1234567890123456789012345678901234567890"
+	// 2**256-2**10 for fake minimal network
+	minimalConfig.TerminalTotalDifficulty = "115792089237316195423570985008687907853269984665640564039457584007913129638912"
 
-	minimalConfig.ConfigName = ConfigNames[Minimal]
+	minimalConfig.ConfigName = MinimalName
 	minimalConfig.PresetBase = "minimal"
 
 	minimalConfig.InitializeForkSchedule()

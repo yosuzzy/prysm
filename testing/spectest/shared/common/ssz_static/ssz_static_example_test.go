@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"testing"
 
-	fssz "github.com/ferranbt/fastssz"
 	"github.com/pkg/errors"
-	v1 "github.com/prysmaticlabs/prysm/beacon-chain/state/v1"
-	ethpb "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
-	"github.com/prysmaticlabs/prysm/testing/require"
-	common "github.com/prysmaticlabs/prysm/testing/spectest/shared/common/ssz_static"
+	fssz "github.com/prysmaticlabs/fastssz"
+	v1 "github.com/prysmaticlabs/prysm/v3/beacon-chain/state/v1"
+	ethpb "github.com/prysmaticlabs/prysm/v3/proto/prysm/v1alpha1"
+	"github.com/prysmaticlabs/prysm/v3/testing/require"
+	common "github.com/prysmaticlabs/prysm/v3/testing/spectest/shared/common/ssz_static"
 )
 
 func ExampleRunSSZStaticTests() {

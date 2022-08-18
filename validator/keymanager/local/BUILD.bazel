@@ -12,8 +12,9 @@ go_library(
         "log.go",
         "refresh.go",
     ],
-    importpath = "github.com/prysmaticlabs/prysm/validator/keymanager/local",
+    importpath = "github.com/prysmaticlabs/prysm/v3/validator/keymanager/local",
     visibility = [
+        "//cmd/validator:__subpackages__",
         "//tools:__subpackages__",
         "//validator:__pkg__",
         "//validator:__subpackages__",

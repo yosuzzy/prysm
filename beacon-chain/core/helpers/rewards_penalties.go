@@ -3,12 +3,12 @@ package helpers
 import (
 	"errors"
 
-	types "github.com/prysmaticlabs/eth2-types"
-	"github.com/prysmaticlabs/prysm/beacon-chain/cache"
-	"github.com/prysmaticlabs/prysm/beacon-chain/state"
-	"github.com/prysmaticlabs/prysm/config/params"
-	mathutil "github.com/prysmaticlabs/prysm/math"
-	"github.com/prysmaticlabs/prysm/time/slots"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/cache"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/state"
+	"github.com/prysmaticlabs/prysm/v3/config/params"
+	types "github.com/prysmaticlabs/prysm/v3/consensus-types/primitives"
+	mathutil "github.com/prysmaticlabs/prysm/v3/math"
+	"github.com/prysmaticlabs/prysm/v3/time/slots"
 )
 
 var balanceCache = cache.NewEffectiveBalanceCache()
@@ -76,6 +76,8 @@ func TotalActiveBalance(s state.ReadOnlyBeaconState) (uint64, error) {
 		return 0, err
 	}
 
+	// Spec defines `EffectiveBalanceIncrement` as min to avoid divisions by zero.
+	total = mathutil.Max(params.BeaconConfig().EffectiveBalanceIncrement, total)
 	if err := balanceCache.AddTotalEffectiveBalance(s, total); err != nil {
 		return 0, err
 	}

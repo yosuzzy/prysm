@@ -5,15 +5,14 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/prysmaticlabs/prysm/testing/require"
-	"github.com/prysmaticlabs/prysm/validator/accounts/wallet"
-	"github.com/prysmaticlabs/prysm/validator/keymanager"
-	"github.com/prysmaticlabs/prysm/validator/keymanager/local"
+	"github.com/prysmaticlabs/prysm/v3/testing/require"
+	"github.com/prysmaticlabs/prysm/v3/validator/accounts/wallet"
+	"github.com/prysmaticlabs/prysm/v3/validator/keymanager"
+	"github.com/prysmaticlabs/prysm/v3/validator/keymanager/local"
 )
 
 const testMnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about"
@@ -55,10 +54,7 @@ func Test_generateKeysFromMnemonicList(t *testing.T) {
 
 func Test_spreadKeysAcrossImportedWallets(t *testing.T) {
 	walletPassword := "Sr0ngPass0q0z929301"
-	tmpDir := filepath.Join(os.TempDir(), "testwallets")
-	t.Cleanup(func() {
-		require.NoError(t, os.RemoveAll(tmpDir))
-	})
+	tmpDir := filepath.Join(t.TempDir(), "testwallets")
 
 	// Spread 5 keys across 5 wallets, meaning there is 1
 	// key per wallet stored on disk.

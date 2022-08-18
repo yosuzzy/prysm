@@ -6,8 +6,8 @@ import (
 	"reflect"
 	"testing"
 
-	types "github.com/prysmaticlabs/eth2-types"
-	fieldparams "github.com/prysmaticlabs/prysm/config/fieldparams"
+	fieldparams "github.com/prysmaticlabs/prysm/v3/config/fieldparams"
+	types "github.com/prysmaticlabs/prysm/v3/consensus-types/primitives"
 )
 
 func Test_uint64FromString(t *testing.T) {

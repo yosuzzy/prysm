@@ -5,12 +5,13 @@ import (
 	"context"
 	"time"
 
-	types "github.com/prysmaticlabs/eth2-types"
-	fieldparams "github.com/prysmaticlabs/prysm/config/fieldparams"
-	ethpb "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
-	prysmTime "github.com/prysmaticlabs/prysm/time"
-	"github.com/prysmaticlabs/prysm/validator/client/iface"
-	"github.com/prysmaticlabs/prysm/validator/keymanager"
+	fieldparams "github.com/prysmaticlabs/prysm/v3/config/fieldparams"
+	types "github.com/prysmaticlabs/prysm/v3/consensus-types/primitives"
+	ethpb "github.com/prysmaticlabs/prysm/v3/proto/prysm/v1alpha1"
+	prysmTime "github.com/prysmaticlabs/prysm/v3/time"
+	"github.com/prysmaticlabs/prysm/v3/validator/client/iface"
+	"github.com/prysmaticlabs/prysm/v3/validator/keymanager"
+	log "github.com/sirupsen/logrus"
 )
 
 var _ iface.Validator = (*FakeValidator)(nil)
@@ -44,6 +45,7 @@ type FakeValidator struct {
 	NextSlotRet                       <-chan types.Slot
 	PublicKey                         string
 	UpdateDutiesRet                   error
+	ProposerSettingsErr               error
 	RolesAtRet                        []iface.ValidatorRole
 	Balances                          map[[fieldparams.BLSPubkeyLength]byte]uint64
 	IndexToPubkeyMap                  map[uint64][fieldparams.BLSPubkeyLength]byte
@@ -62,11 +64,14 @@ func (fv *FakeValidator) Done() {
 	fv.DoneCalled = true
 }
 
-// WaitForWalletInitialization for mocking.
+// WaitForKeymanagerInitialization for mocking.
 func (fv *FakeValidator) WaitForKeymanagerInitialization(_ context.Context) error {
 	fv.WaitForWalletInitializationCalled = true
 	return nil
 }
+
+// LogSyncCommitteeMessagesSubmitted --
+func (fv *FakeValidator) LogSyncCommitteeMessagesSubmitted() {}
 
 // WaitForChainStart for mocking.
 func (fv *FakeValidator) WaitForChainStart(_ context.Context) error {
@@ -178,11 +183,6 @@ func (_ *FakeValidator) SubmitSyncCommitteeMessage(_ context.Context, _ types.Sl
 // LogAttestationsSubmitted for mocking.
 func (_ *FakeValidator) LogAttestationsSubmitted() {}
 
-// LogNextDutyTimeLeft for mocking.
-func (_ *FakeValidator) LogNextDutyTimeLeft(_ types.Slot) error {
-	return nil
-}
-
 // UpdateDomainDataCaches for mocking.
 func (_ *FakeValidator) UpdateDomainDataCaches(context.Context, types.Slot) {}
 
@@ -247,12 +247,21 @@ func (fv *FakeValidator) HandleKeyReload(_ context.Context, newKeys [][fieldpara
 func (_ *FakeValidator) SubmitSignedContributionAndProof(_ context.Context, _ types.Slot, _ [fieldparams.BLSPubkeyLength]byte) {
 }
 
-// UpdateFeeRecipient for mocking
-func (_ *FakeValidator) UpdateFeeRecipient(_ context.Context, _ keymanager.IKeymanager) error {
+// PushProposerSettings for mocking
+func (fv *FakeValidator) PushProposerSettings(_ context.Context, _ keymanager.IKeymanager) error {
+	if fv.ProposerSettingsErr != nil {
+		return fv.ProposerSettingsErr
+	}
+	log.Infoln("Mock updated proposer settings")
 	return nil
 }
 
 // SetPubKeyToValidatorIndexMap for mocking
 func (_ *FakeValidator) SetPubKeyToValidatorIndexMap(_ context.Context, _ keymanager.IKeymanager) error {
 	return nil
+}
+
+// SignValidatorRegistrationRequest for mocking
+func (_ *FakeValidator) SignValidatorRegistrationRequest(_ context.Context, _ iface.SigningFunc, _ *ethpb.ValidatorRegistrationV1) (*ethpb.SignedValidatorRegistrationV1, error) {
+	return nil, nil
 }

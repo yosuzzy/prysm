@@ -7,26 +7,24 @@ import (
 	"time"
 
 	"github.com/d4l3k/messagediff"
-	types "github.com/prysmaticlabs/eth2-types"
-	"github.com/prysmaticlabs/go-bitfield"
-	mockChain "github.com/prysmaticlabs/prysm/beacon-chain/blockchain/testing"
-	"github.com/prysmaticlabs/prysm/beacon-chain/cache/depositcache"
-	"github.com/prysmaticlabs/prysm/beacon-chain/core/helpers"
-	mockPOW "github.com/prysmaticlabs/prysm/beacon-chain/powchain/testing"
-	"github.com/prysmaticlabs/prysm/beacon-chain/state"
-	mockstategen "github.com/prysmaticlabs/prysm/beacon-chain/state/stategen/mock"
-	v1 "github.com/prysmaticlabs/prysm/beacon-chain/state/v1"
-	mockSync "github.com/prysmaticlabs/prysm/beacon-chain/sync/initial-sync/testing"
-	fieldparams "github.com/prysmaticlabs/prysm/config/fieldparams"
-	"github.com/prysmaticlabs/prysm/config/params"
-	"github.com/prysmaticlabs/prysm/container/trie"
-	"github.com/prysmaticlabs/prysm/crypto/bls"
-	"github.com/prysmaticlabs/prysm/encoding/bytesutil"
-	ethpb "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
-	"github.com/prysmaticlabs/prysm/testing/assert"
-	"github.com/prysmaticlabs/prysm/testing/require"
-	"github.com/prysmaticlabs/prysm/testing/util"
-	"github.com/prysmaticlabs/prysm/time/slots"
+	mockChain "github.com/prysmaticlabs/prysm/v3/beacon-chain/blockchain/testing"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/cache/depositcache"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/core/helpers"
+	mockExecution "github.com/prysmaticlabs/prysm/v3/beacon-chain/execution/testing"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/state"
+	mockstategen "github.com/prysmaticlabs/prysm/v3/beacon-chain/state/stategen/mock"
+	v1 "github.com/prysmaticlabs/prysm/v3/beacon-chain/state/v1"
+	mockSync "github.com/prysmaticlabs/prysm/v3/beacon-chain/sync/initial-sync/testing"
+	"github.com/prysmaticlabs/prysm/v3/config/params"
+	types "github.com/prysmaticlabs/prysm/v3/consensus-types/primitives"
+	"github.com/prysmaticlabs/prysm/v3/container/trie"
+	"github.com/prysmaticlabs/prysm/v3/crypto/bls"
+	"github.com/prysmaticlabs/prysm/v3/encoding/bytesutil"
+	ethpb "github.com/prysmaticlabs/prysm/v3/proto/prysm/v1alpha1"
+	"github.com/prysmaticlabs/prysm/v3/testing/assert"
+	"github.com/prysmaticlabs/prysm/v3/testing/require"
+	"github.com/prysmaticlabs/prysm/v3/testing/util"
+	"github.com/prysmaticlabs/prysm/v3/time/slots"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
@@ -43,9 +41,11 @@ func TestValidatorStatus_DepositedEth1(t *testing.T) {
 	depositCache, err := depositcache.New()
 	require.NoError(t, err)
 
-	assert.NoError(t, depositCache.InsertDeposit(ctx, deposit, 0 /*blockNum*/, 0, depositTrie.HashTreeRoot()))
+	root, err := depositTrie.HashTreeRoot()
+	require.NoError(t, err)
+	assert.NoError(t, depositCache.InsertDeposit(ctx, deposit, 0 /*blockNum*/, 0, root))
 	height := time.Unix(int64(params.BeaconConfig().Eth1FollowDistance), 0).Unix()
-	p := &mockPOW.POWChain{
+	p := &mockExecution.Chain{
 		TimesByHeight: map[int]uint64{
 			0: uint64(height),
 		},
@@ -86,9 +86,11 @@ func TestValidatorStatus_Deposited(t *testing.T) {
 	depositCache, err := depositcache.New()
 	require.NoError(t, err)
 
-	assert.NoError(t, depositCache.InsertDeposit(ctx, deposit, 0 /*blockNum*/, 0, depositTrie.HashTreeRoot()))
+	root, err := depositTrie.HashTreeRoot()
+	require.NoError(t, err)
+	assert.NoError(t, depositCache.InsertDeposit(ctx, deposit, 0 /*blockNum*/, 0, root))
 	height := time.Unix(int64(params.BeaconConfig().Eth1FollowDistance), 0).Unix()
-	p := &mockPOW.POWChain{
+	p := &mockExecution.Chain{
 		TimesByHeight: map[int]uint64{
 			0: uint64(height),
 		},
@@ -136,9 +138,11 @@ func TestValidatorStatus_PartiallyDeposited(t *testing.T) {
 	depositCache, err := depositcache.New()
 	require.NoError(t, err)
 
-	assert.NoError(t, depositCache.InsertDeposit(ctx, deposit, 0 /*blockNum*/, 0, depositTrie.HashTreeRoot()))
+	root, err := depositTrie.HashTreeRoot()
+	require.NoError(t, err)
+	assert.NoError(t, depositCache.InsertDeposit(ctx, deposit, 0 /*blockNum*/, 0, root))
 	height := time.Unix(int64(params.BeaconConfig().Eth1FollowDistance), 0).Unix()
-	p := &mockPOW.POWChain{
+	p := &mockExecution.Chain{
 		TimesByHeight: map[int]uint64{
 			0: uint64(height),
 		},
@@ -176,10 +180,10 @@ func TestValidatorStatus_Pending(t *testing.T) {
 	genesisRoot, err := block.Block.HashTreeRoot()
 	require.NoError(t, err, "Could not get signing root")
 	// Pending active because activation epoch is still defaulted at far future slot.
-	state, err := util.NewBeaconState()
+	st, err := util.NewBeaconState()
 	require.NoError(t, err)
-	require.NoError(t, state.SetSlot(5000))
-	err = state.SetValidators([]*ethpb.Validator{
+	require.NoError(t, st.SetSlot(5000))
+	err = st.SetValidators([]*ethpb.Validator{
 		{
 			ActivationEpoch:       params.BeaconConfig().FarFutureEpoch,
 			ExitEpoch:             params.BeaconConfig().FarFutureEpoch,
@@ -204,10 +208,12 @@ func TestValidatorStatus_Pending(t *testing.T) {
 	depositCache, err := depositcache.New()
 	require.NoError(t, err)
 
-	assert.NoError(t, depositCache.InsertDeposit(ctx, deposit, 0 /*blockNum*/, 0, depositTrie.HashTreeRoot()))
+	root, err := depositTrie.HashTreeRoot()
+	require.NoError(t, err)
+	assert.NoError(t, depositCache.InsertDeposit(ctx, deposit, 0 /*blockNum*/, 0, root))
 
 	height := time.Unix(int64(params.BeaconConfig().Eth1FollowDistance), 0).Unix()
-	p := &mockPOW.POWChain{
+	p := &mockExecution.Chain{
 		TimesByHeight: map[int]uint64{
 			0: uint64(height),
 		},
@@ -217,7 +223,7 @@ func TestValidatorStatus_Pending(t *testing.T) {
 		BlockFetcher:      p,
 		Eth1InfoFetcher:   p,
 		DepositFetcher:    depositCache,
-		HeadFetcher:       &mockChain.ChainService{State: state, Root: genesisRoot[:]},
+		HeadFetcher:       &mockChain.ChainService{State: st, Root: genesisRoot[:]},
 	}
 	req := &ethpb.ValidatorStatusRequest{
 		PublicKey: pubKey,
@@ -228,9 +234,9 @@ func TestValidatorStatus_Pending(t *testing.T) {
 }
 
 func TestValidatorStatus_Active(t *testing.T) {
-	// This test breaks if it doesnt use mainnet config
+	// This test breaks if it doesn't use mainnet config
 	params.SetupTestConfigCleanup(t)
-	params.OverrideBeaconConfig(params.MainnetConfig())
+	params.OverrideBeaconConfig(params.MainnetConfig().Copy())
 	ctx := context.Background()
 
 	pubKey := pubKey(1)
@@ -249,7 +255,9 @@ func TestValidatorStatus_Active(t *testing.T) {
 	depositCache, err := depositcache.New()
 	require.NoError(t, err)
 
-	assert.NoError(t, depositCache.InsertDeposit(ctx, deposit, 0 /*blockNum*/, 0, depositTrie.HashTreeRoot()))
+	root, err := depositTrie.HashTreeRoot()
+	require.NoError(t, err)
+	assert.NoError(t, depositCache.InsertDeposit(ctx, deposit, 0 /*blockNum*/, 0, root))
 
 	// Active because activation epoch <= current epoch < exit epoch.
 	activeEpoch := helpers.ActivationExitEpoch(0)
@@ -258,7 +266,7 @@ func TestValidatorStatus_Active(t *testing.T) {
 	genesisRoot, err := block.Block.HashTreeRoot()
 	require.NoError(t, err, "Could not get signing root")
 
-	state := &ethpb.BeaconState{
+	st := &ethpb.BeaconState{
 		GenesisTime: uint64(time.Unix(0, 0).Unix()),
 		Slot:        10000,
 		Validators: []*ethpb.Validator{{
@@ -267,11 +275,11 @@ func TestValidatorStatus_Active(t *testing.T) {
 			WithdrawableEpoch: params.BeaconConfig().FarFutureEpoch,
 			PublicKey:         pubKey},
 		}}
-	stateObj, err := v1.InitializeFromProtoUnsafe(state)
+	stateObj, err := v1.InitializeFromProtoUnsafe(st)
 	require.NoError(t, err)
 
 	timestamp := time.Unix(int64(params.BeaconConfig().Eth1FollowDistance), 0).Unix()
-	p := &mockPOW.POWChain{
+	p := &mockExecution.Chain{
 		TimesByHeight: map[int]uint64{
 			int(params.BeaconConfig().Eth1FollowDistance): uint64(timestamp),
 		},
@@ -312,7 +320,7 @@ func TestValidatorStatus_Exiting(t *testing.T) {
 	genesisRoot, err := block.Block.HashTreeRoot()
 	require.NoError(t, err, "Could not get signing root")
 
-	state := &ethpb.BeaconState{
+	st := &ethpb.BeaconState{
 		Slot: slot,
 		Validators: []*ethpb.Validator{{
 			PublicKey:         pubKey,
@@ -320,7 +328,7 @@ func TestValidatorStatus_Exiting(t *testing.T) {
 			ExitEpoch:         exitEpoch,
 			WithdrawableEpoch: withdrawableEpoch},
 		}}
-	stateObj, err := v1.InitializeFromProtoUnsafe(state)
+	stateObj, err := v1.InitializeFromProtoUnsafe(st)
 	require.NoError(t, err)
 	depData := &ethpb.Deposit_Data{
 		PublicKey:             pubKey,
@@ -336,9 +344,11 @@ func TestValidatorStatus_Exiting(t *testing.T) {
 	depositCache, err := depositcache.New()
 	require.NoError(t, err)
 
-	assert.NoError(t, depositCache.InsertDeposit(ctx, deposit, 0 /*blockNum*/, 0, depositTrie.HashTreeRoot()))
+	root, err := depositTrie.HashTreeRoot()
+	require.NoError(t, err)
+	assert.NoError(t, depositCache.InsertDeposit(ctx, deposit, 0 /*blockNum*/, 0, root))
 	height := time.Unix(int64(params.BeaconConfig().Eth1FollowDistance), 0).Unix()
-	p := &mockPOW.POWChain{
+	p := &mockExecution.Chain{
 		TimesByHeight: map[int]uint64{
 			0: uint64(height),
 		},
@@ -370,14 +380,14 @@ func TestValidatorStatus_Slashing(t *testing.T) {
 	genesisRoot, err := block.Block.HashTreeRoot()
 	require.NoError(t, err, "Could not get signing root")
 
-	state := &ethpb.BeaconState{
+	st := &ethpb.BeaconState{
 		Slot: slot,
 		Validators: []*ethpb.Validator{{
 			Slashed:           true,
 			PublicKey:         pubKey,
 			WithdrawableEpoch: epoch + 1},
 		}}
-	stateObj, err := v1.InitializeFromProtoUnsafe(state)
+	stateObj, err := v1.InitializeFromProtoUnsafe(st)
 	require.NoError(t, err)
 	depData := &ethpb.Deposit_Data{
 		PublicKey:             pubKey,
@@ -393,9 +403,11 @@ func TestValidatorStatus_Slashing(t *testing.T) {
 	depositCache, err := depositcache.New()
 	require.NoError(t, err)
 
-	assert.NoError(t, depositCache.InsertDeposit(ctx, deposit, 0 /*blockNum*/, 0, depositTrie.HashTreeRoot()))
+	root, err := depositTrie.HashTreeRoot()
+	require.NoError(t, err)
+	assert.NoError(t, depositCache.InsertDeposit(ctx, deposit, 0 /*blockNum*/, 0, root))
 	height := time.Unix(int64(params.BeaconConfig().Eth1FollowDistance), 0).Unix()
-	p := &mockPOW.POWChain{
+	p := &mockExecution.Chain{
 		TimesByHeight: map[int]uint64{
 			0: uint64(height),
 		},
@@ -427,11 +439,11 @@ func TestValidatorStatus_Exited(t *testing.T) {
 	genesisRoot, err := block.Block.HashTreeRoot()
 	require.NoError(t, err, "Could not get signing root")
 	params.SetupTestConfigCleanup(t)
-	params.OverrideBeaconConfig(params.MainnetConfig())
-	state, err := util.NewBeaconState()
+	params.OverrideBeaconConfig(params.MainnetConfig().Copy())
+	st, err := util.NewBeaconState()
 	require.NoError(t, err)
-	require.NoError(t, state.SetSlot(slot))
-	err = state.SetValidators([]*ethpb.Validator{{
+	require.NoError(t, st.SetSlot(slot))
+	err = st.SetValidators([]*ethpb.Validator{{
 		PublicKey:             pubKey,
 		WithdrawableEpoch:     epoch + 1,
 		WithdrawalCredentials: make([]byte, 32)},
@@ -451,9 +463,11 @@ func TestValidatorStatus_Exited(t *testing.T) {
 	depositCache, err := depositcache.New()
 	require.NoError(t, err)
 
-	assert.NoError(t, depositCache.InsertDeposit(ctx, deposit, 0 /*blockNum*/, 0, depositTrie.HashTreeRoot()))
+	root, err := depositTrie.HashTreeRoot()
+	require.NoError(t, err)
+	assert.NoError(t, depositCache.InsertDeposit(ctx, deposit, 0 /*blockNum*/, 0, root))
 	height := time.Unix(int64(params.BeaconConfig().Eth1FollowDistance), 0).Unix()
-	p := &mockPOW.POWChain{
+	p := &mockExecution.Chain{
 		TimesByHeight: map[int]uint64{
 			0: uint64(height),
 		},
@@ -463,7 +477,7 @@ func TestValidatorStatus_Exited(t *testing.T) {
 		Eth1InfoFetcher:   p,
 		BlockFetcher:      p,
 		DepositFetcher:    depositCache,
-		HeadFetcher:       &mockChain.ChainService{State: state, Root: genesisRoot[:]},
+		HeadFetcher:       &mockChain.ChainService{State: st, Root: genesisRoot[:]},
 	}
 	req := &ethpb.ValidatorStatusRequest{
 		PublicKey: pubKey,
@@ -484,7 +498,7 @@ func TestValidatorStatus_UnknownStatus(t *testing.T) {
 	require.NoError(t, err)
 	vs := &Server{
 		DepositFetcher:  depositCache,
-		Eth1InfoFetcher: &mockPOW.POWChain{},
+		Eth1InfoFetcher: &mockExecution.Chain{},
 		HeadFetcher: &mockChain.ChainService{
 			State: stateObj,
 		},
@@ -534,17 +548,21 @@ func TestActivationStatus_OK(t *testing.T) {
 	depositCache, err := depositcache.New()
 	require.NoError(t, err)
 
-	assert.NoError(t, depositCache.InsertDeposit(ctx, dep, 10 /*blockNum*/, 0, depositTrie.HashTreeRoot()))
+	root, err := depositTrie.HashTreeRoot()
+	require.NoError(t, err)
+	assert.NoError(t, depositCache.InsertDeposit(ctx, dep, 10 /*blockNum*/, 0, root))
 
 	dep = deposits[2]
 	assert.NoError(t, depositTrie.Insert(dep.Data.Signature, 15))
-	assert.NoError(t, depositCache.InsertDeposit(context.Background(), dep, 0, 1, depositTrie.HashTreeRoot()))
+	root, err = depositTrie.HashTreeRoot()
+	require.NoError(t, err)
+	assert.NoError(t, depositCache.InsertDeposit(context.Background(), dep, 0, 1, root))
 
 	vs := &Server{
 		Ctx:               context.Background(),
-		ChainStartFetcher: &mockPOW.POWChain{},
-		BlockFetcher:      &mockPOW.POWChain{},
-		Eth1InfoFetcher:   &mockPOW.POWChain{},
+		ChainStartFetcher: &mockExecution.Chain{},
+		BlockFetcher:      &mockExecution.Chain{},
+		Eth1InfoFetcher:   &mockExecution.Chain{},
 		DepositFetcher:    depositCache,
 		HeadFetcher:       &mockChain.ChainService{State: stateObj, Root: genesisRoot[:]},
 	}
@@ -585,23 +603,23 @@ func TestActivationStatus_OK(t *testing.T) {
 }
 
 func TestOptimisticStatus(t *testing.T) {
-	server := &Server{HeadFetcher: &mockChain.ChainService{}, TimeFetcher: &mockChain.ChainService{}}
+	params.SetupTestConfigCleanup(t)
+	server := &Server{OptimisticModeFetcher: &mockChain.ChainService{}, TimeFetcher: &mockChain.ChainService{}}
 	err := server.optimisticStatus(context.Background())
 	require.NoError(t, err)
 
-	params.SetupTestConfigCleanup(t)
-	cfg := params.BeaconConfig()
+	cfg := params.BeaconConfig().Copy()
 	cfg.BellatrixForkEpoch = 2
 	params.OverrideBeaconConfig(cfg)
 
-	server = &Server{HeadFetcher: &mockChain.ChainService{Optimistic: true}, TimeFetcher: &mockChain.ChainService{}}
+	server = &Server{OptimisticModeFetcher: &mockChain.ChainService{Optimistic: true}, TimeFetcher: &mockChain.ChainService{}}
 	err = server.optimisticStatus(context.Background())
 	s, ok := status.FromError(err)
 	require.Equal(t, true, ok)
 	require.DeepEqual(t, codes.Unavailable, s.Code())
 	require.ErrorContains(t, errOptimisticMode.Error(), err)
 
-	server = &Server{HeadFetcher: &mockChain.ChainService{Optimistic: false}, TimeFetcher: &mockChain.ChainService{}}
+	server = &Server{OptimisticModeFetcher: &mockChain.ChainService{Optimistic: false}, TimeFetcher: &mockChain.ChainService{}}
 	err = server.optimisticStatus(context.Background())
 	require.NoError(t, err)
 }
@@ -659,10 +677,10 @@ func TestValidatorStatus_CorrectActivationQueue(t *testing.T) {
 			WithdrawableEpoch:     params.BeaconConfig().FarFutureEpoch,
 		},
 	}
-	state, err := util.NewBeaconState()
+	st, err := util.NewBeaconState()
 	require.NoError(t, err)
-	require.NoError(t, state.SetValidators(validators))
-	require.NoError(t, state.SetSlot(currentSlot))
+	require.NoError(t, st.SetValidators(validators))
+	require.NoError(t, st.SetSlot(currentSlot))
 
 	depositTrie, err := trie.NewTrie(params.BeaconConfig().DepositContractTreeDepth)
 	require.NoError(t, err, "Could not setup deposit trie")
@@ -679,12 +697,14 @@ func TestValidatorStatus_CorrectActivationQueue(t *testing.T) {
 		deposit := &ethpb.Deposit{
 			Data: depData,
 		}
-		assert.NoError(t, depositCache.InsertDeposit(ctx, deposit, 0 /*blockNum*/, int64(i), depositTrie.HashTreeRoot()))
+		root, err := depositTrie.HashTreeRoot()
+		require.NoError(t, err)
+		assert.NoError(t, depositCache.InsertDeposit(ctx, deposit, 0 /*blockNum*/, int64(i), root))
 
 	}
 
 	height := time.Unix(int64(params.BeaconConfig().Eth1FollowDistance), 0).Unix()
-	p := &mockPOW.POWChain{
+	p := &mockExecution.Chain{
 		TimesByHeight: map[int]uint64{
 			0: uint64(height),
 		},
@@ -694,7 +714,7 @@ func TestValidatorStatus_CorrectActivationQueue(t *testing.T) {
 		BlockFetcher:      p,
 		Eth1InfoFetcher:   p,
 		DepositFetcher:    depositCache,
-		HeadFetcher:       &mockChain.ChainService{State: state, Root: genesisRoot[:]},
+		HeadFetcher:       &mockChain.ChainService{State: st, Root: genesisRoot[:]},
 	}
 	req := &ethpb.ValidatorStatusRequest{
 		PublicKey: pbKey,
@@ -760,16 +780,20 @@ func TestMultipleValidatorStatus_Pubkeys(t *testing.T) {
 	require.NoError(t, err)
 
 	dep := deposits[0]
-	assert.NoError(t, depositCache.InsertDeposit(ctx, dep, 10 /*blockNum*/, 0, depositTrie.HashTreeRoot()))
+	root, err := depositTrie.HashTreeRoot()
+	require.NoError(t, err)
+	assert.NoError(t, depositCache.InsertDeposit(ctx, dep, 10 /*blockNum*/, 0, root))
 	dep = deposits[2]
 	assert.NoError(t, depositTrie.Insert(dep.Data.Signature, 15))
-	assert.NoError(t, depositCache.InsertDeposit(context.Background(), dep, 0, 1, depositTrie.HashTreeRoot()))
+	root, err = depositTrie.HashTreeRoot()
+	require.NoError(t, err)
+	assert.NoError(t, depositCache.InsertDeposit(context.Background(), dep, 0, 1, root))
 
 	vs := &Server{
 		Ctx:               context.Background(),
-		ChainStartFetcher: &mockPOW.POWChain{},
-		BlockFetcher:      &mockPOW.POWChain{},
-		Eth1InfoFetcher:   &mockPOW.POWChain{},
+		ChainStartFetcher: &mockExecution.Chain{},
+		BlockFetcher:      &mockExecution.Chain{},
+		Eth1InfoFetcher:   &mockExecution.Chain{},
 		DepositFetcher:    depositCache,
 		HeadFetcher:       &mockChain.ChainService{State: stateObj, Root: genesisRoot[:]},
 		SyncChecker:       &mockSync.Sync{IsSyncing: false},
@@ -862,9 +886,9 @@ func TestMultipleValidatorStatus_Indices(t *testing.T) {
 
 	vs := &Server{
 		Ctx:               context.Background(),
-		ChainStartFetcher: &mockPOW.POWChain{},
-		BlockFetcher:      &mockPOW.POWChain{},
-		Eth1InfoFetcher:   &mockPOW.POWChain{},
+		ChainStartFetcher: &mockExecution.Chain{},
+		BlockFetcher:      &mockExecution.Chain{},
+		Eth1InfoFetcher:   &mockExecution.Chain{},
 		HeadFetcher:       &mockChain.ChainService{State: stateObj, Root: genesisRoot[:]},
 		SyncChecker:       &mockSync.Sync{IsSyncing: false},
 	}
@@ -920,9 +944,11 @@ func TestValidatorStatus_Invalid(t *testing.T) {
 	depositCache, err := depositcache.New()
 	require.NoError(t, err)
 
-	assert.NoError(t, depositCache.InsertDeposit(ctx, deposit, 0 /*blockNum*/, 0, depositTrie.HashTreeRoot()))
+	root, err := depositTrie.HashTreeRoot()
+	require.NoError(t, err)
+	assert.NoError(t, depositCache.InsertDeposit(ctx, deposit, 0 /*blockNum*/, 0, root))
 	height := time.Unix(int64(params.BeaconConfig().Eth1FollowDistance), 0).Unix()
-	p := &mockPOW.POWChain{
+	p := &mockExecution.Chain{
 		TimesByHeight: map[int]uint64{
 			0: uint64(height),
 		},
@@ -961,27 +987,15 @@ func TestServer_CheckDoppelGanger(t *testing.T) {
 			name:    "normal doppelganger request",
 			wantErr: false,
 			svSetup: func(t *testing.T) (*Server, *ethpb.DoppelGangerRequest, *ethpb.DoppelGangerResponse) {
-				hs, ps, os, keys, builder := createStateSetup(t, 4)
-				// Previous Epoch State
-				for i := 0; i < 3; i++ {
-					bal, err := ps.BalanceAtIndex(types.ValidatorIndex(i))
-					assert.NoError(t, err)
-					// Add 100 gwei, to mock an inactivity leak
-					assert.NoError(t, ps.UpdateBalancesAtIndex(types.ValidatorIndex(i), bal+1000000000))
-				}
-				// Older Epoch State
-				for i := 0; i < 3; i++ {
-					bal, err := os.BalanceAtIndex(types.ValidatorIndex(i))
-					assert.NoError(t, err)
-					// Add 200 gwei, to mock an inactivity leak
-					assert.NoError(t, os.UpdateBalancesAtIndex(types.ValidatorIndex(i), bal+2000000000))
-				}
+				hs, ps, keys := createStateSetupAltair(t, 3)
+				rb := mockstategen.NewMockReplayerBuilder()
+				rb.SetMockStateForSlot(ps, 23)
 				vs := &Server{
 					HeadFetcher: &mockChain.ChainService{
 						State: hs,
 					},
 					SyncChecker:     &mockSync.Sync{IsSyncing: false},
-					ReplayerBuilder: builder,
+					ReplayerBuilder: rb,
 				}
 				request := &ethpb.DoppelGangerRequest{
 					ValidatorRequests: make([]*ethpb.DoppelGangerRequest_ValidatorRequest, 0),
@@ -1005,37 +1019,19 @@ func TestServer_CheckDoppelGanger(t *testing.T) {
 			name:    "doppelganger exists current epoch",
 			wantErr: false,
 			svSetup: func(t *testing.T) (*Server, *ethpb.DoppelGangerRequest, *ethpb.DoppelGangerResponse) {
-				hs, ps, os, keys, builder := createStateSetup(t, 4)
-				// Previous Epoch State
-				for i := 0; i < 2; i++ {
-					bal, err := ps.BalanceAtIndex(types.ValidatorIndex(i))
-					assert.NoError(t, err)
-					// Add 100 gwei, to mock an inactivity leak
-					assert.NoError(t, ps.UpdateBalancesAtIndex(types.ValidatorIndex(i), bal+1000000000))
-				}
-				bal, err := ps.BalanceAtIndex(types.ValidatorIndex(2))
-				assert.NoError(t, err)
-				// Sub 100 gwei, to mock an active validator.
-				assert.NoError(t, ps.UpdateBalancesAtIndex(types.ValidatorIndex(2), bal-1000000000))
-
-				// Older Epoch State
-				for i := 0; i < 2; i++ {
-					bal, err := os.BalanceAtIndex(types.ValidatorIndex(i))
-					assert.NoError(t, err)
-					// Add 200 gwei, to mock an inactivity leak
-					assert.NoError(t, os.UpdateBalancesAtIndex(types.ValidatorIndex(i), bal+2000000000))
-				}
-				bal, err = os.BalanceAtIndex(types.ValidatorIndex(2))
-				assert.NoError(t, err)
-				// Sub 100 gwei, to mock an active validator.
-				assert.NoError(t, os.UpdateBalancesAtIndex(types.ValidatorIndex(2), bal-1000000000))
+				hs, ps, keys := createStateSetupAltair(t, 3)
+				rb := mockstategen.NewMockReplayerBuilder()
+				rb.SetMockStateForSlot(ps, 23)
+				currentIndices := make([]byte, 64)
+				currentIndices[2] = 1
+				require.NoError(t, hs.SetCurrentParticipationBits(currentIndices))
 
 				vs := &Server{
 					HeadFetcher: &mockChain.ChainService{
 						State: hs,
 					},
 					SyncChecker:     &mockSync.Sync{IsSyncing: false},
-					ReplayerBuilder: builder,
+					ReplayerBuilder: rb,
 				}
 				request := &ethpb.DoppelGangerRequest{
 					ValidatorRequests: make([]*ethpb.DoppelGangerRequest_ValidatorRequest, 0),
@@ -1056,7 +1052,7 @@ func TestServer_CheckDoppelGanger(t *testing.T) {
 				// Add in for duplicate validator
 				request.ValidatorRequests = append(request.ValidatorRequests, &ethpb.DoppelGangerRequest_ValidatorRequest{
 					PublicKey:  keys[2].PublicKey().Marshal(),
-					Epoch:      1,
+					Epoch:      0,
 					SignedRoot: []byte{'A'},
 				})
 				response.Responses = append(response.Responses, &ethpb.DoppelGangerResponse_ValidatorResponse{
@@ -1070,37 +1066,19 @@ func TestServer_CheckDoppelGanger(t *testing.T) {
 			name:    "doppelganger exists previous epoch",
 			wantErr: false,
 			svSetup: func(t *testing.T) (*Server, *ethpb.DoppelGangerRequest, *ethpb.DoppelGangerResponse) {
-				hs, ps, os, keys, builder := createStateSetup(t, 4)
-				// Previous Epoch State
-				for i := 0; i < 2; i++ {
-					bal, err := ps.BalanceAtIndex(types.ValidatorIndex(i))
-					assert.NoError(t, err)
-					// Add 100 gwei, to mock an inactivity leak
-					assert.NoError(t, ps.UpdateBalancesAtIndex(types.ValidatorIndex(i), bal+1000000000))
-				}
-				bal, err := ps.BalanceAtIndex(types.ValidatorIndex(2))
-				assert.NoError(t, err)
-				// Sub 100 gwei, to mock an active validator.
-				assert.NoError(t, ps.UpdateBalancesAtIndex(types.ValidatorIndex(2), bal-1000000000))
-
-				// Older Epoch State
-				for i := 0; i < 2; i++ {
-					bal, err := os.BalanceAtIndex(types.ValidatorIndex(i))
-					assert.NoError(t, err)
-					// Add 200 gwei, to mock an inactivity leak
-					assert.NoError(t, os.UpdateBalancesAtIndex(types.ValidatorIndex(i), bal+2000000000))
-				}
-				bal, err = os.BalanceAtIndex(types.ValidatorIndex(2))
-				assert.NoError(t, err)
-				// Sub 200 gwei, to mock an active validator.
-				assert.NoError(t, os.UpdateBalancesAtIndex(types.ValidatorIndex(2), bal-2000000000))
+				hs, ps, keys := createStateSetupAltair(t, 3)
+				prevIndices := make([]byte, 64)
+				prevIndices[2] = 1
+				require.NoError(t, ps.SetPreviousParticipationBits(prevIndices))
+				rb := mockstategen.NewMockReplayerBuilder()
+				rb.SetMockStateForSlot(ps, 23)
 
 				vs := &Server{
 					HeadFetcher: &mockChain.ChainService{
 						State: hs,
 					},
 					SyncChecker:     &mockSync.Sync{IsSyncing: false},
-					ReplayerBuilder: builder,
+					ReplayerBuilder: rb,
 				}
 				request := &ethpb.DoppelGangerRequest{
 					ValidatorRequests: make([]*ethpb.DoppelGangerRequest_ValidatorRequest, 0),
@@ -1121,7 +1099,7 @@ func TestServer_CheckDoppelGanger(t *testing.T) {
 				// Add in for duplicate validator
 				request.ValidatorRequests = append(request.ValidatorRequests, &ethpb.DoppelGangerRequest_ValidatorRequest{
 					PublicKey:  keys[2].PublicKey().Marshal(),
-					Epoch:      1,
+					Epoch:      0,
 					SignedRoot: []byte{'A'},
 				})
 				response.Responses = append(response.Responses, &ethpb.DoppelGangerResponse_ValidatorResponse{
@@ -1135,29 +1113,26 @@ func TestServer_CheckDoppelGanger(t *testing.T) {
 			name:    "multiple doppelganger exists",
 			wantErr: false,
 			svSetup: func(t *testing.T) (*Server, *ethpb.DoppelGangerRequest, *ethpb.DoppelGangerResponse) {
-				hs, ps, os, keys, builder := createStateSetup(t, 4)
-				// Previous Epoch State
-				for i := 10; i < 15; i++ {
-					bal, err := ps.BalanceAtIndex(types.ValidatorIndex(i))
-					assert.NoError(t, err)
-					// Add 100 gwei, to mock an inactivity leak
-					assert.NoError(t, ps.UpdateBalancesAtIndex(types.ValidatorIndex(i), bal-1000000000))
-				}
+				hs, ps, keys := createStateSetupAltair(t, 3)
+				currentIndices := make([]byte, 64)
+				currentIndices[10] = 1
+				currentIndices[11] = 2
+				require.NoError(t, hs.SetPreviousParticipationBits(currentIndices))
+				rb := mockstategen.NewMockReplayerBuilder()
+				rb.SetMockStateForSlot(ps, 23)
 
-				// Older Epoch State
-				for i := 10; i < 15; i++ {
-					bal, err := os.BalanceAtIndex(types.ValidatorIndex(i))
-					assert.NoError(t, err)
-					// Add 200 gwei, to mock an inactivity leak
-					assert.NoError(t, os.UpdateBalancesAtIndex(types.ValidatorIndex(i), bal-2000000000))
+				prevIndices := make([]byte, 64)
+				for i := 12; i < 20; i++ {
+					prevIndices[i] = 1
 				}
+				require.NoError(t, ps.SetCurrentParticipationBits(prevIndices))
 
 				vs := &Server{
 					HeadFetcher: &mockChain.ChainService{
 						State: hs,
 					},
 					SyncChecker:     &mockSync.Sync{IsSyncing: false},
-					ReplayerBuilder: builder,
+					ReplayerBuilder: rb,
 				}
 				request := &ethpb.DoppelGangerRequest{
 					ValidatorRequests: make([]*ethpb.DoppelGangerRequest_ValidatorRequest, 0),
@@ -1167,12 +1142,23 @@ func TestServer_CheckDoppelGanger(t *testing.T) {
 					// Add in for duplicate validator
 					request.ValidatorRequests = append(request.ValidatorRequests, &ethpb.DoppelGangerRequest_ValidatorRequest{
 						PublicKey:  keys[i].PublicKey().Marshal(),
-						Epoch:      1,
+						Epoch:      0,
 						SignedRoot: []byte{'A'},
 					})
 					response.Responses = append(response.Responses, &ethpb.DoppelGangerResponse_ValidatorResponse{
 						PublicKey:       keys[i].PublicKey().Marshal(),
 						DuplicateExists: true,
+					})
+				}
+				for i := 15; i < 20; i++ {
+					request.ValidatorRequests = append(request.ValidatorRequests, &ethpb.DoppelGangerRequest_ValidatorRequest{
+						PublicKey:  keys[i].PublicKey().Marshal(),
+						Epoch:      3,
+						SignedRoot: []byte{'A'},
+					})
+					response.Responses = append(response.Responses, &ethpb.DoppelGangerResponse_ValidatorResponse{
+						PublicKey:       keys[i].PublicKey().Marshal(),
+						DuplicateExists: false,
 					})
 				}
 
@@ -1183,14 +1169,19 @@ func TestServer_CheckDoppelGanger(t *testing.T) {
 			name:    "attesters are too recent",
 			wantErr: false,
 			svSetup: func(t *testing.T) (*Server, *ethpb.DoppelGangerRequest, *ethpb.DoppelGangerResponse) {
-				hs, _, _, keys, _ := createStateSetup(t, 4)
-
+				hs, ps, keys := createStateSetupAltair(t, 3)
+				rb := mockstategen.NewMockReplayerBuilder()
+				rb.SetMockStateForSlot(ps, 23)
+				currentIndices := make([]byte, 64)
+				currentIndices[0] = 1
+				currentIndices[1] = 2
+				require.NoError(t, hs.SetPreviousParticipationBits(currentIndices))
 				vs := &Server{
 					HeadFetcher: &mockChain.ChainService{
 						State: hs,
 					},
 					SyncChecker:     &mockSync.Sync{IsSyncing: false},
-					ReplayerBuilder: nil,
+					ReplayerBuilder: rb,
 				}
 				request := &ethpb.DoppelGangerRequest{
 					ValidatorRequests: make([]*ethpb.DoppelGangerRequest_ValidatorRequest, 0),
@@ -1206,6 +1197,76 @@ func TestServer_CheckDoppelGanger(t *testing.T) {
 						PublicKey:       keys[i].PublicKey().Marshal(),
 						DuplicateExists: false,
 					})
+				}
+
+				return vs, request, response
+			},
+		},
+		{
+			name:    "attesters are too recent(previous state)",
+			wantErr: false,
+			svSetup: func(t *testing.T) (*Server, *ethpb.DoppelGangerRequest, *ethpb.DoppelGangerResponse) {
+				hs, ps, keys := createStateSetupAltair(t, 3)
+				rb := mockstategen.NewMockReplayerBuilder()
+				rb.SetMockStateForSlot(ps, 23)
+				currentIndices := make([]byte, 64)
+				currentIndices[0] = 1
+				currentIndices[1] = 2
+				require.NoError(t, ps.SetPreviousParticipationBits(currentIndices))
+				vs := &Server{
+					HeadFetcher: &mockChain.ChainService{
+						State: hs,
+					},
+					SyncChecker:     &mockSync.Sync{IsSyncing: false},
+					ReplayerBuilder: rb,
+				}
+				request := &ethpb.DoppelGangerRequest{
+					ValidatorRequests: make([]*ethpb.DoppelGangerRequest_ValidatorRequest, 0),
+				}
+				response := &ethpb.DoppelGangerResponse{Responses: make([]*ethpb.DoppelGangerResponse_ValidatorResponse, 0)}
+				for i := 0; i < 15; i++ {
+					request.ValidatorRequests = append(request.ValidatorRequests, &ethpb.DoppelGangerRequest_ValidatorRequest{
+						PublicKey:  keys[i].PublicKey().Marshal(),
+						Epoch:      1,
+						SignedRoot: []byte{'A'},
+					})
+					response.Responses = append(response.Responses, &ethpb.DoppelGangerResponse_ValidatorResponse{
+						PublicKey:       keys[i].PublicKey().Marshal(),
+						DuplicateExists: false,
+					})
+				}
+
+				return vs, request, response
+			},
+		},
+		{
+			name:    "exit early for Phase 0",
+			wantErr: false,
+			svSetup: func(t *testing.T) (*Server, *ethpb.DoppelGangerRequest, *ethpb.DoppelGangerResponse) {
+				hs, _, keys := createStateSetupPhase0(t, 3)
+
+				vs := &Server{
+					HeadFetcher: &mockChain.ChainService{
+						State: hs,
+					},
+					SyncChecker: &mockSync.Sync{IsSyncing: false},
+				}
+				request := &ethpb.DoppelGangerRequest{
+					ValidatorRequests: []*ethpb.DoppelGangerRequest_ValidatorRequest{
+						{
+							PublicKey:  keys[0].PublicKey().Marshal(),
+							Epoch:      1,
+							SignedRoot: []byte{'A'},
+						},
+					},
+				}
+				response := &ethpb.DoppelGangerResponse{
+					Responses: []*ethpb.DoppelGangerResponse_ValidatorResponse{
+						{
+							PublicKey:       keys[0].PublicKey().Marshal(),
+							DuplicateExists: false,
+						},
+					},
 				}
 
 				return vs, request, response
@@ -1228,104 +1289,36 @@ func TestServer_CheckDoppelGanger(t *testing.T) {
 	}
 }
 
-func createStateSetup(t *testing.T, head types.Epoch) (state.BeaconState,
-	state.BeaconState, state.BeaconState, []bls.SecretKey, *mockstategen.MockReplayerBuilder) {
-	rb := &mockstategen.MockReplayerBuilder{}
+func createStateSetupPhase0(t *testing.T, head types.Epoch) (state.BeaconState,
+	state.BeaconState, []bls.SecretKey) {
 	gs, keys := util.DeterministicGenesisState(t, 64)
 	hs := gs.Copy()
+
 	// Head State
-	headEpoch := head
-	headSlot := types.Slot(headEpoch) * params.BeaconConfig().SlotsPerEpoch
+	headSlot := types.Slot(head)*params.BeaconConfig().SlotsPerEpoch + params.BeaconConfig().SlotsPerEpoch/2
 	assert.NoError(t, hs.SetSlot(headSlot))
-	assingments, _, err := helpers.CommitteeAssignments(context.Background(), hs, headEpoch)
-	assert.NoError(t, err)
-	for _, ctr := range assingments {
-		pendingAtt := &ethpb.PendingAttestation{
-			AggregationBits: bitfield.NewBitlist64(uint64(len(ctr.Committee))).ToBitlist().Not(),
-			Data: &ethpb.AttestationData{
-				Slot:            ctr.AttesterSlot,
-				CommitteeIndex:  ctr.CommitteeIndex,
-				BeaconBlockRoot: make([]byte, fieldparams.RootLength),
-				Source: &ethpb.Checkpoint{
-					Epoch: 0,
-					Root:  make([]byte, fieldparams.RootLength),
-				},
-				Target: &ethpb.Checkpoint{
-					Epoch: 1,
-					Root:  make([]byte, fieldparams.RootLength),
-				},
-			},
-			InclusionDelay: 1,
-			ProposerIndex:  10,
-		}
-		assert.NoError(t, hs.AppendCurrentEpochAttestations(pendingAtt))
-	}
-	rb.SetMockState(hs)
 
 	// Previous Epoch State
-	prevEpoch := headEpoch - 1
+	prevSlot := headSlot - params.BeaconConfig().SlotsPerEpoch
 	ps := gs.Copy()
-	prevSlot, err := slots.EpochEnd(prevEpoch)
-	assert.NoError(t, err)
 	assert.NoError(t, ps.SetSlot(prevSlot))
-	assingments, _, err = helpers.CommitteeAssignments(context.Background(), ps, prevEpoch)
-	assert.NoError(t, err)
-	for _, ctr := range assingments {
-		pendingAtt := &ethpb.PendingAttestation{
-			AggregationBits: bitfield.NewBitlist64(uint64(len(ctr.Committee))).ToBitlist().Not(),
-			Data: &ethpb.AttestationData{
-				Slot:            ctr.AttesterSlot,
-				CommitteeIndex:  ctr.CommitteeIndex,
-				BeaconBlockRoot: make([]byte, fieldparams.RootLength),
-				Source: &ethpb.Checkpoint{
-					Epoch: 0,
-					Root:  make([]byte, fieldparams.RootLength),
-				},
-				Target: &ethpb.Checkpoint{
-					Epoch: 1,
-					Root:  make([]byte, fieldparams.RootLength),
-				},
-			},
-			InclusionDelay: 1,
-			ProposerIndex:  10,
-		}
-		assert.NoError(t, ps.AppendCurrentEpochAttestations(pendingAtt))
-	}
-	rb.SetMockState(ps)
 
-	// Older Epoch State
-	olderEpoch := prevEpoch - 1
-	os := gs.Copy()
-	olderSlot, err := slots.EpochEnd(olderEpoch)
-	assert.NoError(t, err)
-	assert.NoError(t, os.SetSlot(olderSlot))
-	assingments, _, err = helpers.CommitteeAssignments(context.Background(), os, olderEpoch)
-	assert.NoError(t, err)
-	for _, ctr := range assingments {
-		attSlot := ctr.AttesterSlot
-		if attSlot == olderSlot {
-			continue
-		}
-		pendingAtt := &ethpb.PendingAttestation{
-			AggregationBits: bitfield.NewBitlist64(uint64(len(ctr.Committee))).ToBitlist().Not(),
-			Data: &ethpb.AttestationData{
-				Slot:            attSlot,
-				CommitteeIndex:  ctr.CommitteeIndex,
-				BeaconBlockRoot: make([]byte, fieldparams.RootLength),
-				Source: &ethpb.Checkpoint{
-					Epoch: 0,
-					Root:  make([]byte, fieldparams.RootLength),
-				},
-				Target: &ethpb.Checkpoint{
-					Epoch: 1,
-					Root:  make([]byte, fieldparams.RootLength),
-				},
-			},
-			InclusionDelay: 1,
-			ProposerIndex:  10,
-		}
-		assert.NoError(t, os.AppendCurrentEpochAttestations(pendingAtt))
-	}
-	rb.SetMockState(os)
-	return hs, ps, os, keys, rb
+	return hs, ps, keys
+}
+
+func createStateSetupAltair(t *testing.T, head types.Epoch) (state.BeaconState,
+	state.BeaconState, []bls.SecretKey) {
+	gs, keys := util.DeterministicGenesisStateAltair(t, 64)
+	hs := gs.Copy()
+
+	// Head State
+	headSlot := types.Slot(head)*params.BeaconConfig().SlotsPerEpoch + params.BeaconConfig().SlotsPerEpoch/2
+	assert.NoError(t, hs.SetSlot(headSlot))
+
+	// Previous Epoch State
+	prevSlot := headSlot - params.BeaconConfig().SlotsPerEpoch
+	ps := gs.Copy()
+	assert.NoError(t, ps.SetSlot(prevSlot))
+
+	return hs, ps, keys
 }

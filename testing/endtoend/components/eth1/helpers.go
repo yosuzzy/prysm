@@ -8,7 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
-	e2etypes "github.com/prysmaticlabs/prysm/testing/endtoend/types"
+	e2etypes "github.com/prysmaticlabs/prysm/v3/testing/endtoend/types"
 )
 
 // NetworkId is the ID of the ETH1 chain.
@@ -24,8 +24,11 @@ const staticFilesPath = "/testing/endtoend/static-files/eth1"
 const timeGapPerMiningTX = 250 * time.Millisecond
 
 var _ e2etypes.ComponentRunner = (*NodeSet)(nil)
+var _ e2etypes.MultipleComponentRunners = (*NodeSet)(nil)
+var _ e2etypes.MultipleComponentRunners = (*ProxySet)(nil)
 var _ e2etypes.ComponentRunner = (*Miner)(nil)
 var _ e2etypes.ComponentRunner = (*Node)(nil)
+var _ e2etypes.EngineProxy = (*Proxy)(nil)
 
 // WaitForBlocks waits for a certain amount of blocks to be mined by the ETH1 chain before returning.
 func WaitForBlocks(web3 *ethclient.Client, keystore *keystore.Key, blocksToWait uint64) error {

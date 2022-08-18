@@ -20,10 +20,15 @@ The process for implementing new features using this package is as follows:
 package features
 
 import (
+	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 	"time"
 
-	"github.com/prysmaticlabs/prysm/config/params"
+	"github.com/prysmaticlabs/gohashtree"
+	"github.com/prysmaticlabs/prysm/v3/cmd"
+	"github.com/prysmaticlabs/prysm/v3/config/params"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 )
@@ -35,33 +40,18 @@ const disabledFeatureFlag = "Disabled feature flag"
 
 // Flags is a struct to represent which features the client will perform on runtime.
 type Flags struct {
-	// Testnet Flags.
-	PyrmontTestnet bool // PyrmontTestnet defines the flag through which we can enable the node to run on the Pyrmont testnet.
-
 	// Feature related flags.
 	RemoteSlasherProtection             bool // RemoteSlasherProtection utilizes a beacon node with --slasher mode for validator slashing protection.
 	WriteSSZStateTransitions            bool // WriteSSZStateTransitions to tmp directory.
-	SkipBLSVerify                       bool // Skips BLS verification across the runtime.
 	EnablePeerScorer                    bool // EnablePeerScorer enables experimental peer scoring in p2p.
-	EnableLargerGossipHistory           bool // EnableLargerGossipHistory increases the gossip history we store in our caches.
 	WriteWalletPasswordOnWebOnboarding  bool // WriteWalletPasswordOnWebOnboarding writes the password to disk after Prysm web signup.
-	DisableAttestingHistoryDBCache      bool // DisableAttestingHistoryDBCache for the validator client increases disk reads/writes.
-	ProposerAttsSelectionUsingMaxCover  bool // ProposerAttsSelectionUsingMaxCover enables max-cover algorithm when selecting attestations for proposing.
-	EnableOptimizedBalanceUpdate        bool // EnableOptimizedBalanceUpdate uses an updated method of performing balance updates.
 	EnableDoppelGanger                  bool // EnableDoppelGanger enables doppelganger protection on startup for the validator.
 	EnableHistoricalSpaceRepresentation bool // EnableHistoricalSpaceRepresentation enables the saving of registry validators in separate buckets to save space
-	EnableGetBlockOptimizations         bool // EnableGetBlockOptimizations optimizes some elements of the GetBlock() function.
-	EnableBatchVerification             bool // EnableBatchVerification enables batch signature verification on gossip messages.
-	EnableBalanceTrieComputation        bool // EnableBalanceTrieComputation enables our beacon state to use balance tries for hash tree root operations.
 	// Logging related toggles.
 	DisableGRPCConnectionLogs bool // Disables logging when a new grpc client has connected.
 
 	// Slasher toggles.
-	DisableLookback           bool // DisableLookback updates slasher to not use the lookback and update validator histories until epoch 0.
 	DisableBroadcastSlashings bool // DisableBroadcastSlashings disables p2p broadcasting of proposer and attester slashings.
-
-	// Cache toggles.
-	EnableActiveBalanceCache bool // EnableActiveBalanceCache enables active balance cache.
 
 	// Bug fixes related flags.
 	AttestTimely bool // AttestTimely fixes #8185. It is gated behind a flag to ensure beacon node's fix can safely roll out first. We'll invert this in v1.1.0.
@@ -70,13 +60,12 @@ type Flags struct {
 	// EnableSlashingProtectionPruning for the validator client.
 	EnableSlashingProtectionPruning bool
 
-	// Bug fixes related flags.
-	CorrectlyInsertOrphanedAtts bool
-	CorrectlyPruneCanonicalAtts bool
-
-	EnableNativeState                bool // EnableNativeState defines whether the beacon state will be represented as a pure Go struct or a Go struct that wraps a proto struct.
-	EnableVectorizedHTR              bool // EnableVectorizedHTR specifies whether the beacon state will use the optimized sha256 routines.
-	EnableForkChoiceDoublyLinkedTree bool // EnableForkChoiceDoublyLinkedTree specifies whether fork choice store will use a doubly linked tree.
+	EnableNativeState                 bool // EnableNativeState defines whether the beacon state will be represented as a pure Go struct or a Go struct that wraps a proto struct.
+	DisablePullTips                   bool // DisablePullTips enables experimental disabling of boundary checks.
+	EnableVectorizedHTR               bool // EnableVectorizedHTR specifies whether the beacon state will use the optimized sha256 routines.
+	DisableForkchoiceDoublyLinkedTree bool // DisableForkChoiceDoublyLinkedTree specifies whether fork choice store will use a doubly linked tree.
+	EnableBatchGossipAggregation      bool // EnableBatchGossipAggregation specifies whether to further aggregate our gossip batches before verifying them.
+	EnableOnlyBlindedBeaconBlocks     bool // EnableOnlyBlindedBeaconBlocks enables only storing blinded beacon blocks in the DB post-Bellatrix fork.
 
 	// KeystoreImportDebounceInterval specifies the time duration the validator waits to reload new keys if they have
 	// changed on disk. This feature is for advanced use cases only.
@@ -121,31 +110,67 @@ func InitWithReset(c *Flags) func() {
 }
 
 // configureTestnet sets the config according to specified testnet flag
-func configureTestnet(ctx *cli.Context, cfg *Flags) {
-	if ctx.Bool(PyrmontTestnet.Name) {
-		log.Warn("Running on Pyrmont Testnet")
-		params.UsePyrmontConfig()
-		params.UsePyrmontNetworkConfig()
-		cfg.PyrmontTestnet = true
-	} else if ctx.Bool(PraterTestnet.Name) {
+func configureTestnet(ctx *cli.Context) error {
+	if ctx.Bool(PraterTestnet.Name) {
 		log.Warn("Running on the Prater Testnet")
-		params.UsePraterConfig()
+		if err := params.SetActive(params.PraterConfig().Copy()); err != nil {
+			return err
+		}
+		applyPraterFeatureFlags(ctx)
 		params.UsePraterNetworkConfig()
+	} else if ctx.Bool(RopstenTestnet.Name) {
+		log.Warn("Running on the Ropsten Beacon Chain Testnet")
+		if err := params.SetActive(params.RopstenConfig().Copy()); err != nil {
+			return err
+		}
+		applyRopstenFeatureFlags(ctx)
+		params.UseRopstenNetworkConfig()
+	} else if ctx.Bool(SepoliaTestnet.Name) {
+		log.Warn("Running on the Sepolia Beacon Chain Testnet")
+		if err := params.SetActive(params.SepoliaConfig().Copy()); err != nil {
+			return err
+		}
+		applySepoliaFeatureFlags(ctx)
+		params.UseSepoliaNetworkConfig()
 	} else {
-		log.Warn("Running on Ethereum Consensus Mainnet")
-		params.UseMainnetConfig()
+		if ctx.IsSet(cmd.ChainConfigFileFlag.Name) {
+			log.Warn("Running on custom Ethereum network specified in a chain configuration yaml file")
+		} else {
+			log.Warn("Running on Ethereum Mainnet")
+		}
+		if err := params.SetActive(params.MainnetConfig().Copy()); err != nil {
+			return err
+		}
 	}
+	return nil
+}
+
+// Insert feature flags within the function to be enabled for Prater testnet.
+func applyPraterFeatureFlags(ctx *cli.Context) {
+	if err := ctx.Set(EnableOnlyBlindedBeaconBlocks.Names()[0], "true"); err != nil {
+		log.WithError(err).Debug("error enabling only saving blinded beacon blocks flag")
+	}
+}
+
+// Insert feature flags within the function to be enabled for Ropsten testnet.
+func applyRopstenFeatureFlags(ctx *cli.Context) {
+}
+
+// Insert feature flags within the function to be enabled for Sepolia testnet.
+func applySepoliaFeatureFlags(ctx *cli.Context) {
 }
 
 // ConfigureBeaconChain sets the global config based
 // on what flags are enabled for the beacon-chain client.
-func ConfigureBeaconChain(ctx *cli.Context) {
+func ConfigureBeaconChain(ctx *cli.Context) error {
 	complainOnDeprecatedFlags(ctx)
 	cfg := &Flags{}
 	if ctx.Bool(devModeFlag.Name) {
 		enableDevModeFlags(ctx)
 	}
-	configureTestnet(ctx, cfg)
+	if err := configureTestnet(ctx); err != nil {
+		return err
+	}
 
 	if ctx.Bool(writeSSZStateTransitionsFlag.Name) {
 		logEnabled(writeSSZStateTransitionsFlag)
@@ -156,16 +181,10 @@ func ConfigureBeaconChain(ctx *cli.Context) {
 		logDisabled(disableGRPCConnectionLogging)
 		cfg.DisableGRPCConnectionLogs = true
 	}
-	if ctx.Bool(enablePeerScorer.Name) {
-		logEnabled(enablePeerScorer)
-		cfg.EnablePeerScorer = true
-	}
-	if ctx.Bool(checkPtInfoCache.Name) {
-		log.Warn("Advance check point info cache is no longer supported and will soon be deleted")
-	}
-	if ctx.Bool(enableLargerGossipHistory.Name) {
-		logEnabled(enableLargerGossipHistory)
-		cfg.EnableLargerGossipHistory = true
+	cfg.EnablePeerScorer = true
+	if ctx.Bool(disablePeerScorer.Name) {
+		logDisabled(disablePeerScorer)
+		cfg.EnablePeerScorer = false
 	}
 	if ctx.Bool(disableBroadcastSlashingFlag.Name) {
 		logDisabled(disableBroadcastSlashingFlag)
@@ -175,72 +194,65 @@ func ConfigureBeaconChain(ctx *cli.Context) {
 		log.WithField(enableSlasherFlag.Name, enableSlasherFlag.Usage).Warn(enabledFeatureFlag)
 		cfg.EnableSlasher = true
 	}
-	cfg.ProposerAttsSelectionUsingMaxCover = true
-	if ctx.Bool(disableProposerAttsSelectionUsingMaxCover.Name) {
-		logDisabled(disableProposerAttsSelectionUsingMaxCover)
-		cfg.ProposerAttsSelectionUsingMaxCover = false
-	}
-	cfg.EnableOptimizedBalanceUpdate = true
-	if ctx.Bool(disableOptimizedBalanceUpdate.Name) {
-		logDisabled(disableOptimizedBalanceUpdate)
-		cfg.EnableOptimizedBalanceUpdate = false
-	}
 	if ctx.Bool(enableHistoricalSpaceRepresentation.Name) {
 		log.WithField(enableHistoricalSpaceRepresentation.Name, enableHistoricalSpaceRepresentation.Usage).Warn(enabledFeatureFlag)
 		cfg.EnableHistoricalSpaceRepresentation = true
 	}
-	cfg.CorrectlyInsertOrphanedAtts = true
-	if ctx.Bool(disableCorrectlyInsertOrphanedAtts.Name) {
-		logDisabled(disableCorrectlyInsertOrphanedAtts)
-		cfg.CorrectlyInsertOrphanedAtts = false
+	cfg.EnableNativeState = true
+	if ctx.Bool(disableNativeState.Name) {
+		logDisabled(disableNativeState)
+		cfg.EnableNativeState = false
 	}
-	cfg.CorrectlyPruneCanonicalAtts = true
-	if ctx.Bool(disableCorrectlyPruneCanonicalAtts.Name) {
-		logDisabled(disableCorrectlyPruneCanonicalAtts)
-		cfg.CorrectlyPruneCanonicalAtts = false
+
+	if ctx.Bool(disablePullTips.Name) {
+		logEnabled(disablePullTips)
+		cfg.DisablePullTips = true
 	}
-	cfg.EnableActiveBalanceCache = true
-	if ctx.Bool(disableActiveBalanceCache.Name) {
-		logDisabled(disableActiveBalanceCache)
-		cfg.EnableActiveBalanceCache = false
+	if ctx.Bool(disableVecHTR.Name) {
+		logEnabled(disableVecHTR)
+	} else {
+		sigc := make(chan os.Signal, 1)
+		signal.Notify(sigc, syscall.SIGILL)
+		defer signal.Stop(sigc)
+		buffer := make([][32]byte, 2)
+		err := gohashtree.Hash(buffer, buffer)
+		if err != nil {
+			log.Error("could not test if gohashtree is supported")
+		} else {
+			t := time.NewTimer(time.Millisecond * 100)
+			select {
+			case <-sigc:
+				log.Error("gohashtree is not supported in this CPU")
+			case <-t.C:
+				cfg.EnableVectorizedHTR = true
+			}
+		}
 	}
-	cfg.EnableGetBlockOptimizations = true
-	if ctx.Bool(disableGetBlockOptimizations.Name) {
-		logDisabled(disableGetBlockOptimizations)
-		cfg.EnableGetBlockOptimizations = false
+	if ctx.Bool(disableForkChoiceDoublyLinkedTree.Name) {
+		logEnabled(disableForkChoiceDoublyLinkedTree)
+		cfg.DisableForkchoiceDoublyLinkedTree = true
 	}
-	cfg.EnableBatchVerification = true
-	if ctx.Bool(disableBatchGossipVerification.Name) {
-		logDisabled(disableBatchGossipVerification)
-		cfg.EnableBatchVerification = false
+	cfg.EnableBatchGossipAggregation = true
+	if ctx.Bool(disableGossipBatchAggregation.Name) {
+		logDisabled(disableGossipBatchAggregation)
+		cfg.EnableBatchGossipAggregation = false
 	}
-	cfg.EnableBalanceTrieComputation = true
-	if ctx.Bool(disableBalanceTrieComputation.Name) {
-		logDisabled(disableBalanceTrieComputation)
-		cfg.EnableBalanceTrieComputation = false
-	}
-	cfg.EnableNativeState = false
-	if ctx.Bool(enableNativeState.Name) {
-		logEnabled(enableNativeState)
-		cfg.EnableNativeState = true
-	}
-	if ctx.Bool(enableVecHTR.Name) {
-		logEnabled(enableVecHTR)
-		cfg.EnableVectorizedHTR = true
-	}
-	if ctx.Bool(enableForkChoiceDoublyLinkedTree.Name) {
-		logEnabled(enableForkChoiceDoublyLinkedTree)
-		cfg.EnableForkChoiceDoublyLinkedTree = true
+	if ctx.Bool(EnableOnlyBlindedBeaconBlocks.Name) {
+		logEnabled(EnableOnlyBlindedBeaconBlocks)
+		cfg.EnableOnlyBlindedBeaconBlocks = true
 	}
 	Init(cfg)
+	return nil
 }
 
 // ConfigureValidator sets the global config based
 // on what flags are enabled for the validator client.
-func ConfigureValidator(ctx *cli.Context) {
+func ConfigureValidator(ctx *cli.Context) error {
 	complainOnDeprecatedFlags(ctx)
 	cfg := &Flags{}
-	configureTestnet(ctx, cfg)
+	if err := configureTestnet(ctx); err != nil {
+		return err
+	}
 	if ctx.Bool(enableExternalSlasherProtectionFlag.Name) {
 		log.Fatal(
 			"Remote slashing protection has currently been disabled in Prysm due to safety concerns. " +
@@ -250,10 +262,6 @@ func ConfigureValidator(ctx *cli.Context) {
 	if ctx.Bool(writeWalletPasswordOnWebOnboarding.Name) {
 		logEnabled(writeWalletPasswordOnWebOnboarding)
 		cfg.WriteWalletPasswordOnWebOnboarding = true
-	}
-	if ctx.Bool(disableAttestingHistoryDBCache.Name) {
-		logDisabled(disableAttestingHistoryDBCache)
-		cfg.DisableAttestingHistoryDBCache = true
 	}
 	if ctx.Bool(attestTimely.Name) {
 		logEnabled(attestTimely)
@@ -269,6 +277,7 @@ func ConfigureValidator(ctx *cli.Context) {
 	}
 	cfg.KeystoreImportDebounceInterval = ctx.Duration(dynamicKeyReloadDebounceInterval.Name)
 	Init(cfg)
+	return nil
 }
 
 // enableDevModeFlags switches development mode features on.

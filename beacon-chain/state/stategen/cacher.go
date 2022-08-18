@@ -2,22 +2,22 @@ package stategen
 
 import (
 	"github.com/pkg/errors"
-	"github.com/prysmaticlabs/prysm/beacon-chain/state"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/state"
 )
 
 var ErrNotInCache = errors.New("state not found in cache")
 
 type CachedGetter interface {
-	ByRoot([32]byte) (state.BeaconState, error)
+	ByBlockRoot([32]byte) (state.BeaconState, error)
 }
 
 type CombinedCache struct {
 	getters []CachedGetter
 }
 
-func (c CombinedCache) ByRoot(root [32]byte) (state.BeaconState, error) {
+func (c CombinedCache) ByBlockRoot(r [32]byte) (state.BeaconState, error) {
 	for _, getter := range c.getters {
-		st, err := getter.ByRoot(root)
+		st, err := getter.ByBlockRoot(r)
 		if err == nil {
 			return st, nil
 		}

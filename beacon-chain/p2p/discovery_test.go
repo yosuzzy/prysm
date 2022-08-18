@@ -21,22 +21,22 @@ import (
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/prysmaticlabs/go-bitfield"
-	mock "github.com/prysmaticlabs/prysm/beacon-chain/blockchain/testing"
-	"github.com/prysmaticlabs/prysm/beacon-chain/cache"
-	"github.com/prysmaticlabs/prysm/beacon-chain/core/feed"
-	statefeed "github.com/prysmaticlabs/prysm/beacon-chain/core/feed/state"
-	"github.com/prysmaticlabs/prysm/beacon-chain/p2p/peers"
-	"github.com/prysmaticlabs/prysm/beacon-chain/p2p/peers/peerdata"
-	"github.com/prysmaticlabs/prysm/beacon-chain/p2p/peers/scorers"
-	testp2p "github.com/prysmaticlabs/prysm/beacon-chain/p2p/testing"
-	"github.com/prysmaticlabs/prysm/config/params"
-	"github.com/prysmaticlabs/prysm/encoding/bytesutil"
-	prysmNetwork "github.com/prysmaticlabs/prysm/network"
-	ethpb "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
-	"github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1/wrapper"
-	"github.com/prysmaticlabs/prysm/runtime/version"
-	"github.com/prysmaticlabs/prysm/testing/assert"
-	"github.com/prysmaticlabs/prysm/testing/require"
+	mock "github.com/prysmaticlabs/prysm/v3/beacon-chain/blockchain/testing"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/cache"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/core/feed"
+	statefeed "github.com/prysmaticlabs/prysm/v3/beacon-chain/core/feed/state"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/p2p/peers"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/p2p/peers/peerdata"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/p2p/peers/scorers"
+	testp2p "github.com/prysmaticlabs/prysm/v3/beacon-chain/p2p/testing"
+	"github.com/prysmaticlabs/prysm/v3/config/params"
+	"github.com/prysmaticlabs/prysm/v3/consensus-types/wrapper"
+	"github.com/prysmaticlabs/prysm/v3/encoding/bytesutil"
+	prysmNetwork "github.com/prysmaticlabs/prysm/v3/network"
+	ethpb "github.com/prysmaticlabs/prysm/v3/proto/prysm/v1alpha1"
+	"github.com/prysmaticlabs/prysm/v3/runtime/version"
+	"github.com/prysmaticlabs/prysm/v3/testing/assert"
+	"github.com/prysmaticlabs/prysm/v3/testing/require"
 	logTest "github.com/sirupsen/logrus/hooks/test"
 )
 
@@ -215,8 +215,8 @@ func TestStaticPeering_PeersAreAdded(t *testing.T) {
 		})
 	}
 	time.Sleep(4 * time.Second)
-	peers := s.host.Network().Peers()
-	assert.Equal(t, 5, len(peers), "Not all peers added to peerstore")
+	ps := s.host.Network().Peers()
+	assert.Equal(t, 5, len(ps), "Not all peers added to peerstore")
 	require.NoError(t, s.Stop())
 	exitRoutine <- true
 }
@@ -410,7 +410,7 @@ func TestRefreshENR_ForkBoundaries(t *testing.T) {
 				assert.NoError(t, err)
 
 				// Update params
-				cfg := params.BeaconConfig()
+				cfg := params.BeaconConfig().Copy()
 				cfg.AltairForkEpoch = 5
 				params.OverrideBeaconConfig(cfg)
 				params.BeaconConfig().InitializeForkSchedule()
@@ -441,7 +441,7 @@ func TestRefreshENR_ForkBoundaries(t *testing.T) {
 				assert.NoError(t, err)
 
 				// Update params
-				cfg := params.BeaconConfig()
+				cfg := params.BeaconConfig().Copy()
 				cfg.AltairForkEpoch = 5
 				params.OverrideBeaconConfig(cfg)
 				params.BeaconConfig().InitializeForkSchedule()
@@ -471,7 +471,7 @@ func TestRefreshENR_ForkBoundaries(t *testing.T) {
 				assert.NoError(t, err)
 
 				// Update params
-				cfg := params.BeaconConfig()
+				cfg := params.BeaconConfig().Copy()
 				cfg.AltairForkEpoch = 5
 				params.OverrideBeaconConfig(cfg)
 				params.BeaconConfig().InitializeForkSchedule()

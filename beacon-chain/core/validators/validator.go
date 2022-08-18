@@ -8,13 +8,14 @@ import (
 	"context"
 
 	"github.com/pkg/errors"
-	types "github.com/prysmaticlabs/eth2-types"
-	"github.com/prysmaticlabs/prysm/beacon-chain/core/helpers"
-	"github.com/prysmaticlabs/prysm/beacon-chain/core/time"
-	"github.com/prysmaticlabs/prysm/beacon-chain/state"
-	"github.com/prysmaticlabs/prysm/config/params"
-	ethpb "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
-	"github.com/prysmaticlabs/prysm/time/slots"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/core/helpers"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/core/time"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/state"
+	"github.com/prysmaticlabs/prysm/v3/config/params"
+	types "github.com/prysmaticlabs/prysm/v3/consensus-types/primitives"
+	mathutil "github.com/prysmaticlabs/prysm/v3/math"
+	ethpb "github.com/prysmaticlabs/prysm/v3/proto/prysm/v1alpha1"
+	"github.com/prysmaticlabs/prysm/v3/time/slots"
 )
 
 // InitiateValidatorExit takes in validator index and updates
@@ -72,7 +73,11 @@ func InitiateValidatorExit(ctx context.Context, s state.BeaconState, idx types.V
 	exitQueueChurn := uint64(0)
 	err = s.ReadFromEveryValidator(func(idx int, val state.ReadOnlyValidator) error {
 		if val.ExitEpoch() == exitQueueEpoch {
-			exitQueueChurn++
+			var mErr error
+			exitQueueChurn, mErr = mathutil.Add64(exitQueueChurn, 1)
+			if mErr != nil {
+				return mErr
+			}
 		}
 		return nil
 	})
@@ -89,10 +94,16 @@ func InitiateValidatorExit(ctx context.Context, s state.BeaconState, idx types.V
 	}
 
 	if exitQueueChurn >= churn {
-		exitQueueEpoch++
+		exitQueueEpoch, err = exitQueueEpoch.SafeAdd(1)
+		if err != nil {
+			return nil, err
+		}
 	}
 	validator.ExitEpoch = exitQueueEpoch
-	validator.WithdrawableEpoch = exitQueueEpoch + params.BeaconConfig().MinValidatorWithdrawabilityDelay
+	validator.WithdrawableEpoch, err = exitQueueEpoch.SafeAddEpoch(params.BeaconConfig().MinValidatorWithdrawabilityDelay)
+	if err != nil {
+		return nil, err
+	}
 	if err := s.UpdateValidatorAtIndex(idx, validator); err != nil {
 		return nil, err
 	}

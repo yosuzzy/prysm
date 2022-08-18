@@ -4,12 +4,11 @@ import (
 	"context"
 	"testing"
 
-	testDB "github.com/prysmaticlabs/prysm/beacon-chain/db/testing"
-	"github.com/prysmaticlabs/prysm/config/params"
-	"github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1/wrapper"
-	"github.com/prysmaticlabs/prysm/testing/assert"
-	"github.com/prysmaticlabs/prysm/testing/require"
-	"github.com/prysmaticlabs/prysm/testing/util"
+	testDB "github.com/prysmaticlabs/prysm/v3/beacon-chain/db/testing"
+	"github.com/prysmaticlabs/prysm/v3/config/params"
+	"github.com/prysmaticlabs/prysm/v3/testing/assert"
+	"github.com/prysmaticlabs/prysm/v3/testing/require"
+	"github.com/prysmaticlabs/prysm/v3/testing/util"
 	logTest "github.com/sirupsen/logrus/hooks/test"
 )
 
@@ -27,7 +26,7 @@ func TestSaveState_HotStateCanBeSaved(t *testing.T) {
 	require.NoError(t, service.SaveState(ctx, r, beaconState))
 
 	// Should save both state and state summary.
-	_, ok, err := service.epochBoundaryStateCache.getByRoot(r)
+	_, ok, err := service.epochBoundaryStateCache.getByBlockRoot(r)
 	require.NoError(t, err)
 	assert.Equal(t, true, ok, "Should have saved the state")
 	assert.Equal(t, true, service.beaconDB.HasStateSummary(ctx, r), "Should have saved the state summary")
@@ -105,7 +104,7 @@ func TestSaveState_CanSaveOnEpochBoundary(t *testing.T) {
 	require.NoError(t, service.saveStateByRoot(ctx, r, beaconState))
 
 	// Should save both state and state summary.
-	_, ok, err := service.epochBoundaryStateCache.getByRoot(r)
+	_, ok, err := service.epochBoundaryStateCache.getByBlockRoot(r)
 	require.NoError(t, err)
 	require.Equal(t, true, ok, "Did not save epoch boundary state")
 	assert.Equal(t, true, service.beaconDB.HasStateSummary(ctx, r), "Should have saved the state summary")
@@ -123,9 +122,7 @@ func TestSaveState_NoSaveNotEpochBoundary(t *testing.T) {
 	require.NoError(t, beaconState.SetSlot(params.BeaconConfig().SlotsPerEpoch-1))
 	r := [32]byte{'A'}
 	b := util.NewBeaconBlock()
-	wsb, err := wrapper.WrappedSignedBeaconBlock(b)
-	require.NoError(t, err)
-	require.NoError(t, beaconDB.SaveBlock(ctx, wsb))
+	util.SaveBlock(t, ctx, beaconDB, b)
 	gRoot, err := b.Block.HashTreeRoot()
 	require.NoError(t, err)
 	require.NoError(t, beaconDB.SaveGenesisBlockRoot(ctx, gRoot))
@@ -185,16 +182,14 @@ func TestEnableSaveHotStateToDB_Disabled(t *testing.T) {
 	service := New(beaconDB)
 	service.saveHotStateDB.enabled = true
 	b := util.NewBeaconBlock()
-	wsb, err := wrapper.WrappedSignedBeaconBlock(b)
-	require.NoError(t, err)
-	require.NoError(t, beaconDB.SaveBlock(ctx, wsb))
+	util.SaveBlock(t, ctx, beaconDB, b)
 	r, err := b.Block.HashTreeRoot()
 	require.NoError(t, err)
-	service.saveHotStateDB.savedStateRoots = [][32]byte{r}
+	service.saveHotStateDB.blockRootsOfSavedStates = [][32]byte{r}
 	require.NoError(t, service.DisableSaveHotStateToDB(ctx))
 	require.LogsContain(t, hook, "Exiting mode to save hot states in DB")
 	require.Equal(t, false, service.saveHotStateDB.enabled)
-	require.Equal(t, 0, len(service.saveHotStateDB.savedStateRoots))
+	require.Equal(t, 0, len(service.saveHotStateDB.blockRootsOfSavedStates))
 }
 
 func TestEnableSaveHotStateToDB_AlreadyDisabled(t *testing.T) {

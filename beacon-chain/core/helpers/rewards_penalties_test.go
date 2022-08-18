@@ -4,14 +4,13 @@ import (
 	"math"
 	"testing"
 
-	types "github.com/prysmaticlabs/eth2-types"
-	"github.com/prysmaticlabs/prysm/beacon-chain/core/time"
-	v1 "github.com/prysmaticlabs/prysm/beacon-chain/state/v1"
-	"github.com/prysmaticlabs/prysm/config/features"
-	"github.com/prysmaticlabs/prysm/config/params"
-	ethpb "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
-	"github.com/prysmaticlabs/prysm/testing/assert"
-	"github.com/prysmaticlabs/prysm/testing/require"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/core/time"
+	v1 "github.com/prysmaticlabs/prysm/v3/beacon-chain/state/v1"
+	"github.com/prysmaticlabs/prysm/v3/config/params"
+	types "github.com/prysmaticlabs/prysm/v3/consensus-types/primitives"
+	ethpb "github.com/prysmaticlabs/prysm/v3/proto/prysm/v1alpha1"
+	"github.com/prysmaticlabs/prysm/v3/testing/assert"
+	"github.com/prysmaticlabs/prysm/v3/testing/require"
 )
 
 func TestTotalBalance_OK(t *testing.T) {
@@ -75,12 +74,28 @@ func TestTotalActiveBalance(t *testing.T) {
 	}
 }
 
-func TestTotalActiveBalance_WithCache(t *testing.T) {
-	resetCfg := features.InitWithReset(&features.Flags{
-		EnableActiveBalanceCache: true,
-	})
-	defer resetCfg()
+func TestTotalActiveBal_ReturnMin(t *testing.T) {
+	tests := []struct {
+		vCount int
+	}{
+		{1},
+		{10},
+		{10000},
+	}
+	for _, test := range tests {
+		validators := make([]*ethpb.Validator, 0)
+		for i := 0; i < test.vCount; i++ {
+			validators = append(validators, &ethpb.Validator{EffectiveBalance: 1, ExitEpoch: 1})
+		}
+		state, err := v1.InitializeFromProto(&ethpb.BeaconState{Validators: validators})
+		require.NoError(t, err)
+		bal, err := TotalActiveBalance(state)
+		require.NoError(t, err)
+		require.Equal(t, params.BeaconConfig().EffectiveBalanceIncrement, bal)
+	}
+}
 
+func TestTotalActiveBalance_WithCache(t *testing.T) {
 	tests := []struct {
 		vCount    int
 		wantCount int

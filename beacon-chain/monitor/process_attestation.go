@@ -4,17 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	types "github.com/prysmaticlabs/eth2-types"
-	"github.com/prysmaticlabs/prysm/beacon-chain/core/altair"
-	"github.com/prysmaticlabs/prysm/beacon-chain/core/helpers"
-	"github.com/prysmaticlabs/prysm/beacon-chain/state"
-	"github.com/prysmaticlabs/prysm/config/params"
-	"github.com/prysmaticlabs/prysm/encoding/bytesutil"
-	ethpb "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
-	"github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1/attestation"
-	"github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1/block"
-	"github.com/prysmaticlabs/prysm/runtime/version"
-	"github.com/prysmaticlabs/prysm/time/slots"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/core/altair"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/core/helpers"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/state"
+	"github.com/prysmaticlabs/prysm/v3/config/params"
+	"github.com/prysmaticlabs/prysm/v3/consensus-types/interfaces"
+	types "github.com/prysmaticlabs/prysm/v3/consensus-types/primitives"
+	"github.com/prysmaticlabs/prysm/v3/encoding/bytesutil"
+	ethpb "github.com/prysmaticlabs/prysm/v3/proto/prysm/v1alpha1"
+	"github.com/prysmaticlabs/prysm/v3/proto/prysm/v1alpha1/attestation"
+	"github.com/prysmaticlabs/prysm/v3/runtime/version"
+	"github.com/prysmaticlabs/prysm/v3/time/slots"
 	"github.com/sirupsen/logrus"
 )
 
@@ -53,12 +53,12 @@ func logMessageTimelyFlagsForIndex(idx types.ValidatorIndex, data *ethpb.Attesta
 }
 
 // processAttestations logs the event for the tracked validators' attestations inclusion in block
-func (s *Service) processAttestations(ctx context.Context, state state.BeaconState, blk block.BeaconBlock) {
+func (s *Service) processAttestations(ctx context.Context, state state.BeaconState, blk interfaces.BeaconBlock) {
 	if blk == nil || blk.Body() == nil {
 		return
 	}
-	for _, attestation := range blk.Body().Attestations() {
-		s.processIncludedAttestation(ctx, state, attestation)
+	for _, att := range blk.Body().Attestations() {
+		s.processIncludedAttestation(ctx, state, att)
 	}
 }
 
@@ -165,13 +165,13 @@ func (s *Service) processUnaggregatedAttestation(ctx context.Context, att *ethpb
 	s.RLock()
 	defer s.RUnlock()
 	root := bytesutil.ToBytes32(att.Data.BeaconBlockRoot)
-	state := s.config.StateGen.StateByRootIfCachedNoCopy(root)
-	if state == nil {
+	st := s.config.StateGen.StateByRootIfCachedNoCopy(root)
+	if st == nil {
 		log.WithField("BeaconBlockRoot", fmt.Sprintf("%#x", bytesutil.Trunc(root[:]))).Debug(
 			"Skipping unaggregated attestation due to state not found in cache")
 		return
 	}
-	attestingIndices, err := attestingIndices(ctx, state, att)
+	attestingIndices, err := attestingIndices(ctx, st, att)
 	if err != nil {
 		log.WithError(err).Error("Could not get attesting indices")
 		return
@@ -184,7 +184,7 @@ func (s *Service) processUnaggregatedAttestation(ctx context.Context, att *ethpb
 	}
 }
 
-// processUnaggregatedAttestation logs when the beacon node observes an anngregated attestation from tracked validator.
+// processUnaggregatedAttestation logs when the beacon node observes an aggregated attestation from tracked validator.
 func (s *Service) processAggregatedAttestation(ctx context.Context, att *ethpb.AggregateAttestationAndProof) {
 	s.Lock()
 	defer s.Unlock()
@@ -207,13 +207,13 @@ func (s *Service) processAggregatedAttestation(ctx context.Context, att *ethpb.A
 
 	var root [32]byte
 	copy(root[:], att.Aggregate.Data.BeaconBlockRoot)
-	state := s.config.StateGen.StateByRootIfCachedNoCopy(root)
-	if state == nil {
+	st := s.config.StateGen.StateByRootIfCachedNoCopy(root)
+	if st == nil {
 		log.WithField("BeaconBlockRoot", fmt.Sprintf("%#x", bytesutil.Trunc(root[:]))).Debug(
 			"Skipping aggregated attestation due to state not found in cache")
 		return
 	}
-	attestingIndices, err := attestingIndices(ctx, state, att.Aggregate)
+	attestingIndices, err := attestingIndices(ctx, st, att.Aggregate)
 	if err != nil {
 		log.WithError(err).Error("Could not get attesting indices")
 		return

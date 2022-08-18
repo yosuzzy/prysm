@@ -2,18 +2,19 @@ package client
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
-	types "github.com/prysmaticlabs/eth2-types"
-	"github.com/prysmaticlabs/prysm/async/event"
-	fieldparams "github.com/prysmaticlabs/prysm/config/fieldparams"
-	"github.com/prysmaticlabs/prysm/testing/assert"
-	"github.com/prysmaticlabs/prysm/testing/require"
-	"github.com/prysmaticlabs/prysm/validator/client/iface"
-	"github.com/prysmaticlabs/prysm/validator/client/testutil"
-	"github.com/prysmaticlabs/prysm/validator/keymanager/remote/mock"
+	"github.com/pkg/errors"
+	"github.com/prysmaticlabs/prysm/v3/async/event"
+	fieldparams "github.com/prysmaticlabs/prysm/v3/config/fieldparams"
+	"github.com/prysmaticlabs/prysm/v3/config/params"
+	types "github.com/prysmaticlabs/prysm/v3/consensus-types/primitives"
+	"github.com/prysmaticlabs/prysm/v3/testing/assert"
+	"github.com/prysmaticlabs/prysm/v3/testing/require"
+	"github.com/prysmaticlabs/prysm/v3/validator/client/iface"
+	"github.com/prysmaticlabs/prysm/v3/validator/client/testutil"
+	"github.com/prysmaticlabs/prysm/v3/validator/keymanager/remote/mock"
 	logTest "github.com/sirupsen/logrus/hooks/test"
 )
 
@@ -244,4 +245,41 @@ func TestKeyReload_RemoteKeymanager(t *testing.T) {
 	}()
 	run(ctx, v)
 	assert.Equal(t, true, km.ReloadPublicKeysCalled)
+}
+
+func TestUpdateProposerSettingsAt_EpochStart(t *testing.T) {
+	v := &testutil.FakeValidator{Km: &mockKeymanager{accountsChangedFeed: &event.Feed{}}}
+	ctx, cancel := context.WithCancel(context.Background())
+	hook := logTest.NewGlobal()
+	slot := params.BeaconConfig().SlotsPerEpoch
+	ticker := make(chan types.Slot)
+	v.NextSlotRet = ticker
+	go func() {
+		ticker <- slot
+
+		cancel()
+	}()
+
+	run(ctx, v)
+	assert.LogsContain(t, hook, "updated proposer settings")
+}
+
+func TestUpdateProposerSettings_ContinuesAfterValidatorRegistrationFails(t *testing.T) {
+	errSomeotherError := errors.New("some internal error")
+	v := &testutil.FakeValidator{
+		ProposerSettingsErr: errors.Wrap(ErrBuilderValidatorRegistration, errSomeotherError.Error()),
+		Km:                  &mockKeymanager{accountsChangedFeed: &event.Feed{}},
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	hook := logTest.NewGlobal()
+	slot := params.BeaconConfig().SlotsPerEpoch
+	ticker := make(chan types.Slot)
+	v.NextSlotRet = ticker
+	go func() {
+		ticker <- slot
+
+		cancel()
+	}()
+	run(ctx, v)
+	assert.LogsContain(t, hook, ErrBuilderValidatorRegistration.Error())
 }

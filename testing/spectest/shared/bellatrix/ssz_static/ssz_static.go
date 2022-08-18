@@ -5,12 +5,12 @@ import (
 	"errors"
 	"testing"
 
-	fssz "github.com/ferranbt/fastssz"
-	v3 "github.com/prysmaticlabs/prysm/beacon-chain/state/v3"
-	enginev1 "github.com/prysmaticlabs/prysm/proto/engine/v1"
-	ethpb "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
-	"github.com/prysmaticlabs/prysm/testing/require"
-	common "github.com/prysmaticlabs/prysm/testing/spectest/shared/common/ssz_static"
+	fssz "github.com/prysmaticlabs/fastssz"
+	v3 "github.com/prysmaticlabs/prysm/v3/beacon-chain/state/v3"
+	enginev1 "github.com/prysmaticlabs/prysm/v3/proto/engine/v1"
+	ethpb "github.com/prysmaticlabs/prysm/v3/proto/prysm/v1alpha1"
+	"github.com/prysmaticlabs/prysm/v3/testing/require"
+	common "github.com/prysmaticlabs/prysm/v3/testing/spectest/shared/common/ssz_static"
 )
 
 // RunSSZStaticTests executes "ssz_static" tests.
@@ -37,7 +37,7 @@ func unmarshalledSSZ(t *testing.T, serializedBytes []byte, folderName string) (i
 	case "ExecutionPayload":
 		obj = &enginev1.ExecutionPayload{}
 	case "ExecutionPayloadHeader":
-		obj = &ethpb.ExecutionPayloadHeader{}
+		obj = &enginev1.ExecutionPayloadHeader{}
 	case "Attestation":
 		obj = &ethpb.Attestation{}
 	case "AttestationData":
@@ -107,6 +107,15 @@ func unmarshalledSSZ(t *testing.T, serializedBytes []byte, folderName string) (i
 		obj = &ethpb.SyncAggregatorSelectionData{}
 	case "SyncCommittee":
 		obj = &ethpb.SyncCommittee{}
+	case "LightClientOptimisticUpdate":
+		t.Skip("not a beacon node type, this is a light node type")
+		return nil, nil
+	case "LightClientFinalityUpdate":
+		t.Skip("not a beacon node type, this is a light node type")
+		return nil, nil
+	case "LightClientBootstrap":
+		t.Skip("not a beacon node type, this is a light node type")
+		return nil, nil
 	case "LightClientSnapshot":
 		t.Skip("not a beacon node type, this is a light node type")
 		return nil, nil

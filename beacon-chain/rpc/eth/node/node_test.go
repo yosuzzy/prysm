@@ -16,21 +16,21 @@ import (
 	"github.com/libp2p/go-libp2p-core/peer"
 	libp2ptest "github.com/libp2p/go-libp2p-peerstore/test"
 	ma "github.com/multiformats/go-multiaddr"
-	types "github.com/prysmaticlabs/eth2-types"
 	"github.com/prysmaticlabs/go-bitfield"
-	grpcutil "github.com/prysmaticlabs/prysm/api/grpc"
-	mock "github.com/prysmaticlabs/prysm/beacon-chain/blockchain/testing"
-	"github.com/prysmaticlabs/prysm/beacon-chain/p2p"
-	"github.com/prysmaticlabs/prysm/beacon-chain/p2p/peers"
-	mockp2p "github.com/prysmaticlabs/prysm/beacon-chain/p2p/testing"
-	syncmock "github.com/prysmaticlabs/prysm/beacon-chain/sync/initial-sync/testing"
-	ethpb "github.com/prysmaticlabs/prysm/proto/eth/v1"
-	pb "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
-	"github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1/wrapper"
-	"github.com/prysmaticlabs/prysm/runtime/version"
-	"github.com/prysmaticlabs/prysm/testing/assert"
-	"github.com/prysmaticlabs/prysm/testing/require"
-	"github.com/prysmaticlabs/prysm/testing/util"
+	grpcutil "github.com/prysmaticlabs/prysm/v3/api/grpc"
+	mock "github.com/prysmaticlabs/prysm/v3/beacon-chain/blockchain/testing"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/p2p"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/p2p/peers"
+	mockp2p "github.com/prysmaticlabs/prysm/v3/beacon-chain/p2p/testing"
+	syncmock "github.com/prysmaticlabs/prysm/v3/beacon-chain/sync/initial-sync/testing"
+	types "github.com/prysmaticlabs/prysm/v3/consensus-types/primitives"
+	"github.com/prysmaticlabs/prysm/v3/consensus-types/wrapper"
+	ethpb "github.com/prysmaticlabs/prysm/v3/proto/eth/v1"
+	pb "github.com/prysmaticlabs/prysm/v3/proto/prysm/v1alpha1"
+	"github.com/prysmaticlabs/prysm/v3/runtime/version"
+	"github.com/prysmaticlabs/prysm/v3/testing/assert"
+	"github.com/prysmaticlabs/prysm/v3/testing/require"
+	"github.com/prysmaticlabs/prysm/v3/testing/util"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
@@ -167,20 +167,22 @@ func TestSyncStatus(t *testing.T) {
 	require.NoError(t, err)
 	err = state.SetSlot(100)
 	require.NoError(t, err)
-	chainService := &mock.ChainService{Slot: currentSlot, State: state}
+	chainService := &mock.ChainService{Slot: currentSlot, State: state, Optimistic: true}
 	syncChecker := &syncmock.Sync{}
 	syncChecker.IsSyncing = true
 
 	s := &Server{
-		HeadFetcher:        chainService,
-		GenesisTimeFetcher: chainService,
-		SyncChecker:        syncChecker,
+		HeadFetcher:           chainService,
+		GenesisTimeFetcher:    chainService,
+		OptimisticModeFetcher: chainService,
+		SyncChecker:           syncChecker,
 	}
 	resp, err := s.GetSyncStatus(context.Background(), &emptypb.Empty{})
 	require.NoError(t, err)
 	assert.Equal(t, types.Slot(100), resp.Data.HeadSlot)
 	assert.Equal(t, types.Slot(10), resp.Data.SyncDistance)
 	assert.Equal(t, true, resp.Data.IsSyncing)
+	assert.Equal(t, true, resp.Data.IsOptimistic)
 }
 
 func TestGetPeer(t *testing.T) {

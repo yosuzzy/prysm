@@ -30,9 +30,17 @@ var (
 		Name: "remote_web3signer_attestation_sign_requests_total",
 		Help: "Total number of attestation sign requests",
 	})
-	blockV2SignRequestsTotal = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "remote_web3signer_block_v2_sign_requests_total",
-		Help: "Total number of block v2 sign requests",
+	blockAltairSignRequestsTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "remote_web3signer_block_altair_sign_requests_total",
+		Help: "Total number of block altair sign requests",
+	})
+	blockBellatrixSignRequestsTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "remote_web3signer_block_bellatrix_sign_requests_total",
+		Help: "Total number of block bellatrix sign requests",
+	})
+	blindedblockBellatrixSignRequestsTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "remote_web3signer_blinded_block_bellatrix_sign_requests_total",
+		Help: "Total number of blinded block bellatrix sign requests",
 	})
 	randaoRevealSignRequestsTotal = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "remote_web3signer_randao_reveal_sign_requests_total",
@@ -53,5 +61,9 @@ var (
 	syncCommitteeContributionAndProofSignRequestsTotal = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "remote_web3signer_sync_committee_contribution_and_proof_sign_requests_total",
 		Help: "Total number of sync committee contribution and proof sign requests",
+	})
+	validatorRegistrationSignRequestsTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "remote_web3signer_validator_registration_sign_requests_total",
+		Help: "Total number of validator registration sign requests",
 	})
 )

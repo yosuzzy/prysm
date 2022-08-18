@@ -10,20 +10,20 @@ import (
 	"github.com/kevinms/leakybucket-go"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
-	types "github.com/prysmaticlabs/eth2-types"
-	mock "github.com/prysmaticlabs/prysm/beacon-chain/blockchain/testing"
-	dbtest "github.com/prysmaticlabs/prysm/beacon-chain/db/testing"
-	p2pm "github.com/prysmaticlabs/prysm/beacon-chain/p2p"
-	p2pt "github.com/prysmaticlabs/prysm/beacon-chain/p2p/testing"
-	"github.com/prysmaticlabs/prysm/cmd/beacon-chain/flags"
-	"github.com/prysmaticlabs/prysm/config/params"
-	"github.com/prysmaticlabs/prysm/encoding/bytesutil"
-	ethpb "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
-	"github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1/wrapper"
-	"github.com/prysmaticlabs/prysm/testing/assert"
-	"github.com/prysmaticlabs/prysm/testing/require"
-	"github.com/prysmaticlabs/prysm/testing/util"
-	"github.com/prysmaticlabs/prysm/time/slots"
+	mock "github.com/prysmaticlabs/prysm/v3/beacon-chain/blockchain/testing"
+	dbtest "github.com/prysmaticlabs/prysm/v3/beacon-chain/db/testing"
+	p2pm "github.com/prysmaticlabs/prysm/v3/beacon-chain/p2p"
+	p2pt "github.com/prysmaticlabs/prysm/v3/beacon-chain/p2p/testing"
+	"github.com/prysmaticlabs/prysm/v3/cmd/beacon-chain/flags"
+	"github.com/prysmaticlabs/prysm/v3/config/params"
+	"github.com/prysmaticlabs/prysm/v3/consensus-types/blocks"
+	types "github.com/prysmaticlabs/prysm/v3/consensus-types/primitives"
+	"github.com/prysmaticlabs/prysm/v3/encoding/bytesutil"
+	ethpb "github.com/prysmaticlabs/prysm/v3/proto/prysm/v1alpha1"
+	"github.com/prysmaticlabs/prysm/v3/testing/assert"
+	"github.com/prysmaticlabs/prysm/v3/testing/require"
+	"github.com/prysmaticlabs/prysm/v3/testing/util"
+	"github.com/prysmaticlabs/prysm/v3/time/slots"
 )
 
 func TestBlocksFetcher_nonSkippedSlotAfter(t *testing.T) {
@@ -163,9 +163,7 @@ func TestBlocksFetcher_findFork(t *testing.T) {
 	finalizedEpoch := slots.ToEpoch(finalizedSlot)
 
 	genesisBlock := chain1[0]
-	wsb, err := wrapper.WrappedSignedBeaconBlock(genesisBlock)
-	require.NoError(t, err)
-	require.NoError(t, beaconDB.SaveBlock(context.Background(), wsb))
+	util.SaveBlock(t, context.Background(), beaconDB, genesisBlock)
 	genesisRoot, err := genesisBlock.Block.HashTreeRoot()
 	require.NoError(t, err)
 
@@ -223,7 +221,7 @@ func TestBlocksFetcher_findFork(t *testing.T) {
 	for _, blk := range chain1 {
 		blkRoot, err := blk.Block.HashTreeRoot()
 		require.NoError(t, err)
-		require.Equal(t, true, beaconDB.HasBlock(ctx, blkRoot) || mc.HasInitSyncBlock(blkRoot))
+		require.Equal(t, true, beaconDB.HasBlock(ctx, blkRoot) || mc.HasBlock(ctx, blkRoot))
 	}
 	assert.Equal(t, types.Slot(250), mc.HeadSlot())
 
@@ -233,9 +231,9 @@ func TestBlocksFetcher_findFork(t *testing.T) {
 		Step:      1,
 		Count:     blockBatchLimit,
 	}
-	blocks, err := fetcher.requestBlocks(ctx, req, peers[pidInd%len(peers)])
+	blks, err := fetcher.requestBlocks(ctx, req, peers[pidInd%len(peers)])
 	require.NoError(t, err)
-	assert.Equal(t, 0, len(blocks))
+	assert.Equal(t, 0, len(blks))
 
 	// If no peers with unexplored paths exist, error should be returned.
 	fork, err := fetcher.findFork(ctx, 251)
@@ -261,9 +259,7 @@ func TestBlocksFetcher_findFork(t *testing.T) {
 	require.Equal(t, curForkMoreBlocksPeer, fork.peer)
 	// Save all chain1b blocks (so that they do not interfere with alternative fork)
 	for _, blk := range chain1b {
-		wsb, err := wrapper.WrappedSignedBeaconBlock(blk)
-		require.NoError(t, err)
-		require.NoError(t, beaconDB.SaveBlock(ctx, wsb))
+		util.SaveBlock(t, ctx, beaconDB, blk)
 		require.NoError(t, st.SetSlot(blk.Block.Slot))
 	}
 	forkSlot := types.Slot(129)
@@ -273,7 +269,7 @@ func TestBlocksFetcher_findFork(t *testing.T) {
 	for _, blk := range chain2[forkSlot:] {
 		blkRoot, err := blk.Block.HashTreeRoot()
 		require.NoError(t, err)
-		require.Equal(t, false, beaconDB.HasBlock(ctx, blkRoot) || mc.HasInitSyncBlock(blkRoot))
+		require.Equal(t, false, beaconDB.HasBlock(ctx, blkRoot) || mc.HasBlock(ctx, blkRoot))
 	}
 
 	// Search for alternative paths (add single peer having alternative path).
@@ -299,10 +295,8 @@ func TestBlocksFetcher_findFork(t *testing.T) {
 		require.Equal(t, blk.Block.Slot, i, "incorrect block selected for slot %d", i)
 		// Only save is parent block exists.
 		parentRoot := bytesutil.ToBytes32(blk.Block.ParentRoot)
-		if beaconDB.HasBlock(ctx, parentRoot) || mc.HasInitSyncBlock(parentRoot) {
-			wsb, err := wrapper.WrappedSignedBeaconBlock(blk)
-			require.NoError(t, err)
-			require.NoError(t, beaconDB.SaveBlock(ctx, wsb))
+		if beaconDB.HasBlock(ctx, parentRoot) || mc.HasBlock(ctx, parentRoot) {
+			util.SaveBlock(t, ctx, beaconDB, blk)
 			require.NoError(t, st.SetSlot(blk.Block.Slot))
 		}
 	}
@@ -311,7 +305,7 @@ func TestBlocksFetcher_findFork(t *testing.T) {
 	for _, blk := range chain2 {
 		blkRoot, err := blk.Block.HashTreeRoot()
 		require.NoError(t, err)
-		require.Equal(t, true, beaconDB.HasBlock(ctx, blkRoot) || mc.HasInitSyncBlock(blkRoot), "slot %d", blk.Block.Slot)
+		require.Equal(t, true, beaconDB.HasBlock(ctx, blkRoot) || mc.HasBlock(ctx, blkRoot), "slot %d", blk.Block.Slot)
 	}
 }
 
@@ -321,9 +315,7 @@ func TestBlocksFetcher_findForkWithPeer(t *testing.T) {
 
 	knownBlocks := extendBlockSequence(t, []*ethpb.SignedBeaconBlock{}, 128)
 	genesisBlock := knownBlocks[0]
-	wsb, err := wrapper.WrappedSignedBeaconBlock(genesisBlock)
-	require.NoError(t, err)
-	require.NoError(t, beaconDB.SaveBlock(context.Background(), wsb))
+	util.SaveBlock(t, context.Background(), beaconDB, genesisBlock)
 	genesisRoot, err := genesisBlock.Block.HashTreeRoot()
 	require.NoError(t, err)
 
@@ -350,9 +342,7 @@ func TestBlocksFetcher_findForkWithPeer(t *testing.T) {
 	fetcher.rateLimiter = leakybucket.NewCollector(6400, 6400, false)
 
 	for _, blk := range knownBlocks {
-		wsb, err := wrapper.WrappedSignedBeaconBlock(blk)
-		require.NoError(t, err)
-		require.NoError(t, beaconDB.SaveBlock(ctx, wsb))
+		util.SaveBlock(t, ctx, beaconDB, blk)
 		require.NoError(t, st.SetSlot(blk.Block.Slot))
 	}
 
@@ -437,9 +427,7 @@ func TestBlocksFetcher_findAncestor(t *testing.T) {
 	finalizedEpoch := slots.ToEpoch(finalizedSlot)
 
 	genesisBlock := knownBlocks[0]
-	wsb, err := wrapper.WrappedSignedBeaconBlock(genesisBlock)
-	require.NoError(t, err)
-	require.NoError(t, beaconDB.SaveBlock(context.Background(), wsb))
+	util.SaveBlock(t, context.Background(), beaconDB, genesisBlock)
 	genesisRoot, err := genesisBlock.Block.HashTreeRoot()
 	require.NoError(t, err)
 
@@ -474,7 +462,7 @@ func TestBlocksFetcher_findAncestor(t *testing.T) {
 		p2 := p2pt.NewTestP2P(t)
 		p2p.Connect(p2)
 
-		wsb, err := wrapper.WrappedSignedBeaconBlock(knownBlocks[4])
+		wsb, err := blocks.NewSignedBeaconBlock(knownBlocks[4])
 		require.NoError(t, err)
 		_, err = fetcher.findAncestor(ctx, p2.PeerID(), wsb)
 		assert.ErrorContains(t, "protocol not supported", err)
@@ -488,7 +476,7 @@ func TestBlocksFetcher_findAncestor(t *testing.T) {
 			assert.NoError(t, stream.Close())
 		})
 
-		wsb, err := wrapper.WrappedSignedBeaconBlock(knownBlocks[4])
+		wsb, err := blocks.NewSignedBeaconBlock(knownBlocks[4])
 		require.NoError(t, err)
 
 		fork, err := fetcher.findAncestor(ctx, p2.PeerID(), wsb)

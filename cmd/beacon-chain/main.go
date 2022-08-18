@@ -11,32 +11,34 @@ import (
 	gethlog "github.com/ethereum/go-ethereum/log"
 	golog "github.com/ipfs/go-log/v2"
 	joonix "github.com/joonix/log"
-	"github.com/prysmaticlabs/prysm/beacon-chain/node"
-	"github.com/prysmaticlabs/prysm/cmd"
-	blockchaincmd "github.com/prysmaticlabs/prysm/cmd/beacon-chain/blockchain"
-	dbcommands "github.com/prysmaticlabs/prysm/cmd/beacon-chain/db"
-	"github.com/prysmaticlabs/prysm/cmd/beacon-chain/flags"
-	powchaincmd "github.com/prysmaticlabs/prysm/cmd/beacon-chain/powchain"
-	"github.com/prysmaticlabs/prysm/cmd/beacon-chain/sync/checkpoint"
-	"github.com/prysmaticlabs/prysm/cmd/beacon-chain/sync/genesis"
-	"github.com/prysmaticlabs/prysm/config/features"
-	"github.com/prysmaticlabs/prysm/io/file"
-	"github.com/prysmaticlabs/prysm/io/logs"
-	"github.com/prysmaticlabs/prysm/monitoring/journald"
-	"github.com/prysmaticlabs/prysm/runtime/debug"
-	_ "github.com/prysmaticlabs/prysm/runtime/maxprocs"
-	"github.com/prysmaticlabs/prysm/runtime/tos"
-	"github.com/prysmaticlabs/prysm/runtime/version"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/builder"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/node"
+	"github.com/prysmaticlabs/prysm/v3/cmd"
+	blockchaincmd "github.com/prysmaticlabs/prysm/v3/cmd/beacon-chain/blockchain"
+	dbcommands "github.com/prysmaticlabs/prysm/v3/cmd/beacon-chain/db"
+	"github.com/prysmaticlabs/prysm/v3/cmd/beacon-chain/execution"
+	"github.com/prysmaticlabs/prysm/v3/cmd/beacon-chain/flags"
+	jwtcommands "github.com/prysmaticlabs/prysm/v3/cmd/beacon-chain/jwt"
+	"github.com/prysmaticlabs/prysm/v3/cmd/beacon-chain/sync/checkpoint"
+	"github.com/prysmaticlabs/prysm/v3/cmd/beacon-chain/sync/genesis"
+	"github.com/prysmaticlabs/prysm/v3/config/features"
+	"github.com/prysmaticlabs/prysm/v3/io/file"
+	"github.com/prysmaticlabs/prysm/v3/io/logs"
+	"github.com/prysmaticlabs/prysm/v3/monitoring/journald"
+	"github.com/prysmaticlabs/prysm/v3/runtime/debug"
+	"github.com/prysmaticlabs/prysm/v3/runtime/fdlimits"
+	prefixed "github.com/prysmaticlabs/prysm/v3/runtime/logging/logrus-prefixed-formatter"
+	_ "github.com/prysmaticlabs/prysm/v3/runtime/maxprocs"
+	"github.com/prysmaticlabs/prysm/v3/runtime/tos"
+	"github.com/prysmaticlabs/prysm/v3/runtime/version"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
-	prefixed "github.com/x-cray/logrus-prefixed-formatter"
 )
 
 var appFlags = []cli.Flag{
 	flags.DepositContractFlag,
-	flags.HTTPWeb3ProviderFlag,
+	flags.ExecutionEngineEndpoint,
 	flags.ExecutionJWTSecretFlag,
-	flags.FallbackWeb3ProviderFlag,
 	flags.RPCHost,
 	flags.RPCPort,
 	flags.CertFlag,
@@ -49,9 +51,6 @@ var appFlags = []cli.Flag{
 	flags.MinSyncPeers,
 	flags.ContractDeploymentBlock,
 	flags.SetGCPercent,
-	flags.HeadSync,
-	flags.DisableSync,
-	flags.DisableDiscv5,
 	flags.BlockBatchLimit,
 	flags.BlockBatchLimitBurstFactor,
 	flags.InteropMockEth1DataVotesFlag,
@@ -68,7 +67,12 @@ var appFlags = []cli.Flag{
 	flags.Eth1HeaderReqLimit,
 	flags.MinPeersPerSubnet,
 	flags.SuggestedFeeRecipient,
-	cmd.EnableBackupWebhookFlag,
+	flags.TerminalTotalDifficultyOverride,
+	flags.TerminalBlockHashOverride,
+	flags.TerminalBlockHashActivationEpochOverride,
+	flags.MevRelayEndpoint,
+	flags.MaxBuilderEpochMissedSlots,
+	flags.MaxBuilderConsecutiveMissedSlots,
 	cmd.BackupWebhookOutputDir,
 	cmd.MinimalConfigFlag,
 	cmd.E2EConfigFlag,
@@ -116,7 +120,6 @@ var appFlags = []cli.Flag{
 	cmd.AcceptTosFlag,
 	cmd.RestoreSourceFileFlag,
 	cmd.RestoreTargetDirFlag,
-	cmd.BoltMMapInitialSizeFlag,
 	cmd.ValidatorMonitorIndicesFlag,
 	cmd.ApiTimeoutFlag,
 	checkpoint.BlockPath,
@@ -138,6 +141,7 @@ func main() {
 	app.Version = version.Version()
 	app.Commands = []*cli.Command{
 		dbcommands.Commands,
+		jwtcommands.Commands,
 	}
 
 	app.Flags = appFlags
@@ -180,10 +184,7 @@ func main() {
 				log.WithError(err).Error("Failed to configuring logging to disk.")
 			}
 		}
-		if err := cmd.ExpandSingleEndpointIfFile(ctx, flags.HTTPWeb3ProviderFlag); err != nil {
-			return err
-		}
-		if err := cmd.ExpandWeb3EndpointsIfFile(ctx, flags.FallbackWeb3ProviderFlag); err != nil {
+		if err := cmd.ExpandSingleEndpointIfFile(ctx, flags.ExecutionEngineEndpoint); err != nil {
 			return err
 		}
 		if ctx.IsSet(flags.SetGCPercent.Name) {
@@ -191,6 +192,9 @@ func main() {
 		}
 		runtime.GOMAXPROCS(runtime.NumCPU())
 		if err := debug.Setup(ctx); err != nil {
+			return err
+		}
+		if err := fdlimits.SetMaxFdLimits(); err != nil {
 			return err
 		}
 		return cmd.ValidateNoArgs(ctx)
@@ -240,13 +244,18 @@ func startNode(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	powchainFlagOpts, err := powchaincmd.FlagOptions(ctx)
+	executionFlagOpts, err := execution.FlagOptions(ctx)
+	if err != nil {
+		return err
+	}
+	builderFlagOpts, err := builder.FlagOptions(ctx)
 	if err != nil {
 		return err
 	}
 	opts := []node.Option{
 		node.WithBlockchainFlagOptions(blockchainFlagOpts),
-		node.WithPowchainFlagOptions(powchainFlagOpts),
+		node.WithExecutionChainOptions(executionFlagOpts),
+		node.WithBuilderFlagOptions(builderFlagOpts),
 	}
 
 	optFuncs := []func(*cli.Context) (node.Option, error){

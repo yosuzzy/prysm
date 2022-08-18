@@ -3,20 +3,19 @@ package accounts
 import (
 	"context"
 	"flag"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
 	"testing"
 
 	"github.com/pkg/errors"
-	"github.com/prysmaticlabs/prysm/cmd/validator/flags"
-	"github.com/prysmaticlabs/prysm/testing/assert"
-	"github.com/prysmaticlabs/prysm/testing/require"
-	"github.com/prysmaticlabs/prysm/validator/accounts/iface"
-	"github.com/prysmaticlabs/prysm/validator/accounts/wallet"
-	"github.com/prysmaticlabs/prysm/validator/keymanager"
-	"github.com/prysmaticlabs/prysm/validator/keymanager/derived"
+	"github.com/prysmaticlabs/prysm/v3/cmd/validator/flags"
+	"github.com/prysmaticlabs/prysm/v3/testing/assert"
+	"github.com/prysmaticlabs/prysm/v3/testing/require"
+	"github.com/prysmaticlabs/prysm/v3/validator/accounts/iface"
+	"github.com/prysmaticlabs/prysm/v3/validator/accounts/wallet"
+	"github.com/prysmaticlabs/prysm/v3/validator/keymanager"
+	"github.com/prysmaticlabs/prysm/v3/validator/keymanager/derived"
 	"github.com/urfave/cli/v2"
 )
 
@@ -31,9 +30,9 @@ func setupRecoverCfg(t *testing.T) *recoverCfgStruct {
 	testDir := t.TempDir()
 	walletDir := filepath.Join(testDir, walletDirName)
 	passwordFilePath := filepath.Join(testDir, passwordFileName)
-	require.NoError(t, ioutil.WriteFile(passwordFilePath, []byte(password), os.ModePerm))
+	require.NoError(t, os.WriteFile(passwordFilePath, []byte(password), os.ModePerm))
 	mnemonicFilePath := filepath.Join(testDir, mnemonicFileName)
-	require.NoError(t, ioutil.WriteFile(mnemonicFilePath, []byte(mnemonic), os.ModePerm))
+	require.NoError(t, os.WriteFile(mnemonicFilePath, []byte(mnemonic), os.ModePerm))
 
 	return &recoverCfgStruct{
 		walletDir:        walletDir,

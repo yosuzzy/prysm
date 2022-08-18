@@ -4,9 +4,9 @@ import (
 	"reflect"
 	"testing"
 
-	ssz "github.com/ferranbt/fastssz"
-	types "github.com/prysmaticlabs/eth2-types"
-	"github.com/prysmaticlabs/prysm/testing/assert"
+	ssz "github.com/prysmaticlabs/fastssz"
+	types "github.com/prysmaticlabs/prysm/v3/consensus-types/primitives"
+	"github.com/prysmaticlabs/prysm/v3/testing/assert"
 )
 
 func TestDefaultParams(t *testing.T) {
@@ -455,7 +455,7 @@ func TestParams_validatorIndicesInChunk(t *testing.T) {
 			want:              []types.ValidatorIndex{6, 7, 8},
 		},
 		{
-			name: "0 validator chunk size returs empty",
+			name: "0 validator chunk size returns empty",
 			fields: &Parameters{
 				validatorChunkSize: 0,
 			},

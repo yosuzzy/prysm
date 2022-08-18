@@ -1,8 +1,8 @@
 package v2
 
 import (
-	"github.com/prysmaticlabs/prysm/encoding/bytesutil"
-	ethpb "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
+	"github.com/prysmaticlabs/prysm/v3/encoding/bytesutil"
+	ethpb "github.com/prysmaticlabs/prysm/v3/proto/prysm/v1alpha1"
 )
 
 // currentSyncCommittee of the current sync committee in beacon chain state.
@@ -28,7 +28,7 @@ func (b *BeaconState) nextSyncCommittee() *ethpb.SyncCommittee {
 // CurrentSyncCommittee of the current sync committee in beacon chain state.
 func (b *BeaconState) CurrentSyncCommittee() (*ethpb.SyncCommittee, error) {
 	if !b.hasInnerState() {
-		return nil, nil
+		return nil, ErrNilInnerState
 	}
 
 	b.lock.RLock()
@@ -44,7 +44,7 @@ func (b *BeaconState) CurrentSyncCommittee() (*ethpb.SyncCommittee, error) {
 // NextSyncCommittee of the next sync committee in beacon chain state.
 func (b *BeaconState) NextSyncCommittee() (*ethpb.SyncCommittee, error) {
 	if !b.hasInnerState() {
-		return nil, nil
+		return nil, ErrNilInnerState
 	}
 
 	b.lock.RLock()

@@ -4,13 +4,13 @@ import (
 	"context"
 	"fmt"
 
-	types "github.com/prysmaticlabs/eth2-types"
-	"github.com/prysmaticlabs/prysm/beacon-chain/core/blocks"
-	"github.com/prysmaticlabs/prysm/beacon-chain/state"
-	"github.com/prysmaticlabs/prysm/config/params"
-	"github.com/prysmaticlabs/prysm/encoding/bytesutil"
-	"github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1/block"
-	"github.com/prysmaticlabs/prysm/time/slots"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/core/blocks"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/state"
+	"github.com/prysmaticlabs/prysm/v3/config/params"
+	"github.com/prysmaticlabs/prysm/v3/consensus-types/interfaces"
+	types "github.com/prysmaticlabs/prysm/v3/consensus-types/primitives"
+	"github.com/prysmaticlabs/prysm/v3/encoding/bytesutil"
+	"github.com/prysmaticlabs/prysm/v3/time/slots"
 	"github.com/sirupsen/logrus"
 )
 
@@ -23,7 +23,7 @@ const AggregateReportingPeriod = 5
 // - An Exit by one of our validators was included
 // - A Slashing by one of our tracked validators was included
 // - A Sync Committee Contribution by one of our tracked validators was included
-func (s *Service) processBlock(ctx context.Context, b block.SignedBeaconBlock) {
+func (s *Service) processBlock(ctx context.Context, b interfaces.SignedBeaconBlock) {
 	if b == nil || b.Block() == nil {
 		return
 	}
@@ -37,8 +37,8 @@ func (s *Service) processBlock(ctx context.Context, b block.SignedBeaconBlock) {
 		log.WithError(err).Error("Could not compute block's hash tree root")
 		return
 	}
-	state := s.config.StateGen.StateByRootIfCachedNoCopy(root)
-	if state == nil {
+	st := s.config.StateGen.StateByRootIfCachedNoCopy(root)
+	if st == nil {
 		log.WithField("BeaconBlockRoot", fmt.Sprintf("%#x", bytesutil.Trunc(root[:]))).Debug(
 			"Skipping block collection due to state not found in cache")
 		return
@@ -51,12 +51,12 @@ func (s *Service) processBlock(ctx context.Context, b block.SignedBeaconBlock) {
 
 	if currEpoch != lastSyncedEpoch &&
 		slots.SyncCommitteePeriod(currEpoch) == slots.SyncCommitteePeriod(lastSyncedEpoch) {
-		s.updateSyncCommitteeTrackedVals(state)
+		s.updateSyncCommitteeTrackedVals(st)
 	}
 
-	s.processSyncAggregate(state, blk)
-	s.processProposedBlock(state, root, blk)
-	s.processAttestations(ctx, state, blk)
+	s.processSyncAggregate(st, blk)
+	s.processProposedBlock(st, root, blk)
+	s.processAttestations(ctx, st, blk)
 
 	if blk.Slot()%(AggregateReportingPeriod*params.BeaconConfig().SlotsPerEpoch) == 0 {
 		s.logAggregatedPerformance()
@@ -64,7 +64,7 @@ func (s *Service) processBlock(ctx context.Context, b block.SignedBeaconBlock) {
 }
 
 // processProposedBlock logs when the beacon node observes a beacon block from a tracked validator.
-func (s *Service) processProposedBlock(state state.BeaconState, root [32]byte, blk block.BeaconBlock) {
+func (s *Service) processProposedBlock(state state.BeaconState, root [32]byte, blk interfaces.BeaconBlock) {
 	s.Lock()
 	defer s.Unlock()
 	if s.trackedIndex(blk.ProposerIndex()) {
@@ -101,7 +101,7 @@ func (s *Service) processProposedBlock(state state.BeaconState, root [32]byte, b
 }
 
 // processSlashings logs the event when tracked validators was slashed
-func (s *Service) processSlashings(blk block.BeaconBlock) {
+func (s *Service) processSlashings(blk interfaces.BeaconBlock) {
 	s.RLock()
 	defer s.RUnlock()
 	for _, slashing := range blk.Body().ProposerSlashings() {
@@ -171,7 +171,7 @@ func (s *Service) logAggregatedPerformance() {
 			"AverageInclusionDistance": fmt.Sprintf("%.1f", percentDistance),
 			"TotalProposedBlocks":      p.totalProposedCount,
 			"TotalAggregations":        p.totalAggregations,
-			"TotalSyncContributions":   p.totalSyncComitteeContributions,
+			"TotalSyncContributions":   p.totalSyncCommitteeContributions,
 		}).Info("Aggregated performance since launch")
 	}
 }

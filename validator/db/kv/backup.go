@@ -6,8 +6,8 @@ import (
 	"path"
 	"time"
 
-	"github.com/prysmaticlabs/prysm/config/params"
-	"github.com/prysmaticlabs/prysm/io/file"
+	"github.com/prysmaticlabs/prysm/v3/config/params"
+	"github.com/prysmaticlabs/prysm/v3/io/file"
 	bolt "go.etcd.io/bbolt"
 	"go.opencensus.io/trace"
 )
@@ -17,7 +17,7 @@ const backupsDirectoryName = "backups"
 // Backup the database to the datadir backup directory.
 // Example for backup: $DATADIR/backups/prysm_validatordb_1029019.backup
 func (s *Store) Backup(ctx context.Context, outputDir string, permissionOverride bool) error {
-	_, span := trace.StartSpan(ctx, "ValidatorDB.Backup")
+	ctx, span := trace.StartSpan(ctx, "ValidatorDB.Backup")
 	defer span.End()
 
 	var backupsDir string

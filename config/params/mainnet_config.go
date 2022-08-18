@@ -4,7 +4,8 @@ import (
 	"math"
 	"time"
 
-	"github.com/prysmaticlabs/prysm/encoding/bytesutil"
+	fieldparams "github.com/prysmaticlabs/prysm/v3/config/fieldparams"
+	"github.com/prysmaticlabs/prysm/v3/encoding/bytesutil"
 )
 
 // MainnetConfig returns the configuration to be used in the main network.
@@ -15,18 +16,13 @@ func MainnetConfig() *BeaconChainConfig {
 	return mainnetBeaconConfig
 }
 
-// UseMainnetConfig for beacon chain services.
-func UseMainnetConfig() {
-	beaconConfig = MainnetConfig()
-}
-
 const (
 	// Genesis Fork Epoch for the mainnet config.
 	genesisForkEpoch = 0
 	// Altair Fork Epoch for mainnet config.
 	mainnetAltairForkEpoch = 74240 // Oct 27, 2021, 10:56:23am UTC
-	// Placeholder for the merge epoch until it is decided
-	mainnetBellatrixForkEpoch = math.MaxUint64
+	// Bellatrix Fork Epoch for mainnet config.
+	mainnetBellatrixForkEpoch = 144896 // Sept 6, 2022, 11:34:47am UTC
 )
 
 var mainnetNetworkConfig = &NetworkConfig{
@@ -98,8 +94,9 @@ var mainnetBeaconConfig = &BeaconChainConfig{
 	EffectiveBalanceIncrement: 1 * 1e9,
 
 	// Initial value constants.
-	BLSWithdrawalPrefixByte: byte(0),
-	ZeroHash:                [32]byte{},
+	BLSWithdrawalPrefixByte:         byte(0),
+	ETH1AddressWithdrawalPrefixByte: byte(1),
+	ZeroHash:                        [32]byte{},
 
 	// Time parameter constants.
 	MinAttestationInclusionDelay:     1,
@@ -115,9 +112,10 @@ var mainnetBeaconConfig = &BeaconChainConfig{
 	MinEpochsToInactivityPenalty:     4,
 	Eth1FollowDistance:               2048,
 	SafeSlotsToUpdateJustified:       8,
+	SafeSlotsToImportOptimistically:  128,
 
 	// Fork choice algorithm constants.
-	ProposerScoreBoost: 70,
+	ProposerScoreBoost: 40,
 	IntervalsPerSlot:   3,
 
 	// Ethereum PoW parameters.
@@ -159,16 +157,19 @@ var mainnetBeaconConfig = &BeaconChainConfig{
 	MaxVoluntaryExits:    16,
 
 	// BLS domain values.
-	DomainBeaconProposer:              bytesutil.ToBytes4(bytesutil.Bytes4(0)),
-	DomainBeaconAttester:              bytesutil.ToBytes4(bytesutil.Bytes4(1)),
-	DomainRandao:                      bytesutil.ToBytes4(bytesutil.Bytes4(2)),
-	DomainDeposit:                     bytesutil.ToBytes4(bytesutil.Bytes4(3)),
-	DomainVoluntaryExit:               bytesutil.ToBytes4(bytesutil.Bytes4(4)),
-	DomainSelectionProof:              bytesutil.ToBytes4(bytesutil.Bytes4(5)),
-	DomainAggregateAndProof:           bytesutil.ToBytes4(bytesutil.Bytes4(6)),
-	DomainSyncCommittee:               bytesutil.ToBytes4(bytesutil.Bytes4(7)),
-	DomainSyncCommitteeSelectionProof: bytesutil.ToBytes4(bytesutil.Bytes4(8)),
-	DomainContributionAndProof:        bytesutil.ToBytes4(bytesutil.Bytes4(9)),
+	DomainBeaconProposer:              bytesutil.Uint32ToBytes4(0x00000000),
+	DomainBeaconAttester:              bytesutil.Uint32ToBytes4(0x01000000),
+	DomainRandao:                      bytesutil.Uint32ToBytes4(0x02000000),
+	DomainDeposit:                     bytesutil.Uint32ToBytes4(0x03000000),
+	DomainVoluntaryExit:               bytesutil.Uint32ToBytes4(0x04000000),
+	DomainSelectionProof:              bytesutil.Uint32ToBytes4(0x05000000),
+	DomainAggregateAndProof:           bytesutil.Uint32ToBytes4(0x06000000),
+	DomainSyncCommittee:               bytesutil.Uint32ToBytes4(0x07000000),
+	DomainSyncCommitteeSelectionProof: bytesutil.Uint32ToBytes4(0x08000000),
+	DomainContributionAndProof:        bytesutil.Uint32ToBytes4(0x09000000),
+	DomainApplicationMask:             bytesutil.Uint32ToBytes4(0x00000001),
+	DomainApplicationBuilder:          bytesutil.Uint32ToBytes4(0x00000001),
+	DomainBLSToExecutionChange:        bytesutil.Uint32ToBytes4(0x0A000000),
 
 	// Prysm constants.
 	GweiPerEth:                     1000000000,
@@ -183,7 +184,7 @@ var mainnetBeaconConfig = &BeaconChainConfig{
 	MaxPeersToSync:                 15,
 	SlotsPerArchivedPoint:          2048,
 	GenesisCountdownInterval:       time.Minute,
-	ConfigName:                     ConfigNames[Mainnet],
+	ConfigName:                     MainnetName,
 	PresetBase:                     "mainnet",
 	BeaconStateFieldCount:          21,
 	BeaconStateAltairFieldCount:    24,
@@ -204,7 +205,9 @@ var mainnetBeaconConfig = &BeaconChainConfig{
 	AltairForkEpoch:      mainnetAltairForkEpoch,
 	BellatrixForkVersion: []byte{2, 0, 0, 0},
 	BellatrixForkEpoch:   mainnetBellatrixForkEpoch,
-	ShardingForkVersion:  []byte{3, 0, 0, 0},
+	CapellaForkVersion:   []byte{3, 0, 0, 0},
+	CapellaForkEpoch:     math.MaxUint64,
+	ShardingForkVersion:  []byte{4, 0, 0, 0},
 	ShardingForkEpoch:    math.MaxUint64,
 
 	// New values introduced in Altair hard fork 1.
@@ -245,5 +248,40 @@ var mainnetBeaconConfig = &BeaconChainConfig{
 	// Bellatrix
 	TerminalBlockHashActivationEpoch: 18446744073709551615,
 	TerminalBlockHash:                [32]byte{},
-	TerminalTotalDifficulty:          "115792089237316195423570985008687907853269984665640564039457584007913129638912",
+	TerminalTotalDifficulty:          "58750000000000000000000", // Estimated: Sept 15, 2022
+	EthBurnAddressHex:                "0x0000000000000000000000000000000000000000",
+	DefaultBuilderGasLimit:           uint64(30000000),
+
+	// Mevboost circuit breaker
+	MaxBuilderConsecutiveMissedSlots: 3,
+	MaxBuilderEpochMissedSlots:       8,
+}
+
+// MainnetTestConfig provides a version of the mainnet config that has a different name
+// and a different fork choice schedule. This can be used in cases where we want to use config values
+// that are consistent with mainnet, but won't conflict or cause the hard-coded genesis to be loaded.
+func MainnetTestConfig() *BeaconChainConfig {
+	mn := MainnetConfig().Copy()
+	mn.ConfigName = MainnetTestName
+	FillTestVersions(mn, 128)
+	return mn
+}
+
+// FillTestVersions replaces the byte in the last position of each fork version
+// so that
+func FillTestVersions(c *BeaconChainConfig, b byte) {
+	c.GenesisForkVersion = make([]byte, fieldparams.VersionLength)
+	c.AltairForkVersion = make([]byte, fieldparams.VersionLength)
+	c.BellatrixForkVersion = make([]byte, fieldparams.VersionLength)
+	c.ShardingForkVersion = make([]byte, fieldparams.VersionLength)
+
+	c.GenesisForkVersion[fieldparams.VersionLength-1] = b
+	c.AltairForkVersion[fieldparams.VersionLength-1] = b
+	c.BellatrixForkVersion[fieldparams.VersionLength-1] = b
+	c.ShardingForkVersion[fieldparams.VersionLength-1] = b
+
+	c.GenesisForkVersion[0] = 0
+	c.AltairForkVersion[0] = 1
+	c.BellatrixForkVersion[0] = 2
+	c.ShardingForkVersion[0] = 3
 }

@@ -6,17 +6,17 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
-	types "github.com/prysmaticlabs/eth2-types"
-	"github.com/prysmaticlabs/prysm/config/params"
-	"github.com/prysmaticlabs/prysm/encoding/bytesutil"
-	"github.com/prysmaticlabs/prysm/testing/assert"
-	"github.com/prysmaticlabs/prysm/testing/require"
+	"github.com/prysmaticlabs/prysm/v3/config/params"
+	types "github.com/prysmaticlabs/prysm/v3/consensus-types/primitives"
+	"github.com/prysmaticlabs/prysm/v3/encoding/bytesutil"
+	"github.com/prysmaticlabs/prysm/v3/testing/assert"
+	"github.com/prysmaticlabs/prysm/v3/testing/require"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 func TestGetSpec(t *testing.T) {
 	params.SetupTestConfigCleanup(t)
-	config := params.BeaconConfig()
+	config := params.BeaconConfig().Copy()
 
 	config.ConfigName = "ConfigName"
 	config.PresetBase = "PresetBase"
@@ -52,7 +52,10 @@ func TestGetSpec(t *testing.T) {
 	config.BellatrixForkEpoch = 101
 	config.ShardingForkVersion = []byte("ShardingForkVersion")
 	config.ShardingForkEpoch = 102
+	config.CapellaForkVersion = []byte("CapellaForkVersion")
+	config.CapellaForkEpoch = 103
 	config.BLSWithdrawalPrefixByte = byte('b')
+	config.ETH1AddressWithdrawalPrefixByte = byte('c')
 	config.GenesisDelay = 24
 	config.SecondsPerSlot = 25
 	config.MinAttestationInclusionDelay = 26
@@ -123,6 +126,9 @@ func TestGetSpec(t *testing.T) {
 	var daap [4]byte
 	copy(daap[:], []byte{'0', '0', '0', '7'})
 	config.DomainAggregateAndProof = daap
+	var dam [4]byte
+	copy(dam[:], []byte{'1', '0', '0', '0'})
+	config.DomainApplicationMask = dam
 
 	params.OverrideBeaconConfig(config)
 
@@ -130,7 +136,7 @@ func TestGetSpec(t *testing.T) {
 	resp, err := server.GetSpec(context.Background(), &emptypb.Empty{})
 	require.NoError(t, err)
 
-	assert.Equal(t, 98, len(resp.Data))
+	assert.Equal(t, 102, len(resp.Data))
 	for k, v := range resp.Data {
 		switch k {
 		case "CONFIG_NAME":
@@ -199,10 +205,16 @@ func TestGetSpec(t *testing.T) {
 			assert.Equal(t, "0x"+hex.EncodeToString([]byte("ShardingForkVersion")), v)
 		case "SHARDING_FORK_EPOCH":
 			assert.Equal(t, "102", v)
+		case "CAPELLA_FORK_VERSION":
+			assert.Equal(t, "0x"+hex.EncodeToString([]byte("CapellaForkVersion")), v)
+		case "CAPELLA_FORK_EPOCH":
+			assert.Equal(t, "103", v)
 		case "MIN_ANCHOR_POW_BLOCK_DIFFICULTY":
 			assert.Equal(t, "1000", v)
 		case "BLS_WITHDRAWAL_PREFIX":
 			assert.Equal(t, "0x62", v)
+		case "ETH1_ADDRESS_WITHDRAWAL_PREFIX":
+			assert.Equal(t, "0x63", v)
 		case "GENESIS_DELAY":
 			assert.Equal(t, "24", v)
 		case "SECONDS_PER_SLOT":
@@ -315,6 +327,8 @@ func TestGetSpec(t *testing.T) {
 			assert.Equal(t, "0x30303036", v)
 		case "DOMAIN_AGGREGATE_AND_PROOF":
 			assert.Equal(t, "0x30303037", v)
+		case "DOMAIN_APPLICATION_MASK":
+			assert.Equal(t, "0x31303030", v)
 		case "DOMAIN_SYNC_COMMITTEE":
 			assert.Equal(t, "0x07000000", v)
 		case "DOMAIN_SYNC_COMMITTEE_SELECTION_PROOF":
@@ -338,7 +352,7 @@ func TestGetSpec(t *testing.T) {
 		case "INACTIVITY_PENALTY_QUOTIENT_BELLATRIX":
 			assert.Equal(t, "16777216", v)
 		case "PROPOSER_SCORE_BOOST":
-			assert.Equal(t, "70", v)
+			assert.Equal(t, "40", v)
 		case "INTERVALS_PER_SLOT":
 			assert.Equal(t, "3", v)
 		case "SAFE_SLOTS_TO_IMPORT_OPTIMISTICALLY":
@@ -353,7 +367,7 @@ func TestGetDepositContract(t *testing.T) {
 	const chainId = 99
 	const address = "0x0000000000000000000000000000000000000009"
 	params.SetupTestConfigCleanup(t)
-	config := params.BeaconConfig()
+	config := params.BeaconConfig().Copy()
 	config.DepositChainID = chainId
 	config.DepositContractAddress = address
 	params.OverrideBeaconConfig(config)
@@ -372,7 +386,7 @@ func TestForkSchedule_Ok(t *testing.T) {
 	thirdForkVersion, thirdForkEpoch := []byte("Thir"), types.Epoch(300)
 
 	params.SetupTestConfigCleanup(t)
-	config := params.BeaconConfig()
+	config := params.BeaconConfig().Copy()
 	config.GenesisForkVersion = genesisForkVersion
 	// Create fork schedule adding keys in non-sorted order.
 	schedule := make(map[[4]byte]types.Epoch, 3)

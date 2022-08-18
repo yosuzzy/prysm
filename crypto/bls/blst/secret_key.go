@@ -1,6 +1,4 @@
 //go:build ((linux && amd64) || (linux && arm64) || (darwin && amd64) || (darwin && arm64) || (windows && amd64)) && !blst_disabled
-// +build linux,amd64 linux,arm64 darwin,amd64 darwin,arm64 windows,amd64
-// +build !blst_disabled
 
 package blst
 
@@ -8,10 +6,9 @@ import (
 	"crypto/subtle"
 	"fmt"
 
-	"github.com/prysmaticlabs/prysm/config/features"
-	"github.com/prysmaticlabs/prysm/config/params"
-	"github.com/prysmaticlabs/prysm/crypto/bls/common"
-	"github.com/prysmaticlabs/prysm/crypto/rand"
+	"github.com/prysmaticlabs/prysm/v3/config/params"
+	"github.com/prysmaticlabs/prysm/v3/crypto/bls/common"
+	"github.com/prysmaticlabs/prysm/v3/crypto/rand"
 	blst "github.com/supranational/blst/bindings/go"
 )
 
@@ -75,9 +72,6 @@ func IsZero(sKey []byte) bool {
 // In Ethereum proof of stake specification:
 // def Sign(SK: int, message: Bytes) -> BLSSignature
 func (s *bls12SecretKey) Sign(msg []byte) common.Signature {
-	if features.Get().SkipBLSVerify {
-		return &Signature{}
-	}
 	signature := new(blstSignature).Sign(s.p, msg, dst)
 	return &Signature{s: signature}
 }

@@ -6,19 +6,19 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/pkg/errors"
-	fieldparams "github.com/prysmaticlabs/prysm/config/fieldparams"
-	"github.com/prysmaticlabs/prysm/crypto/bls"
-	"github.com/prysmaticlabs/prysm/encoding/bytesutil"
-	"github.com/prysmaticlabs/prysm/monitoring/tracing"
+	fieldparams "github.com/prysmaticlabs/prysm/v3/config/fieldparams"
+	"github.com/prysmaticlabs/prysm/v3/crypto/bls"
+	"github.com/prysmaticlabs/prysm/v3/encoding/bytesutil"
+	"github.com/prysmaticlabs/prysm/v3/monitoring/tracing"
 	"github.com/sirupsen/logrus"
 	"go.opencensus.io/trace"
 )
@@ -28,6 +28,11 @@ const (
 )
 
 type SignRequestJson []byte
+
+// SignatureResponse is the struct representing the signing request response in json format
+type SignatureResponse struct {
+	Signature hexutil.Bytes `json:"signature"`
+}
 
 // HttpSignerClient defines the interface for interacting with a remote web3signer.
 type HttpSignerClient interface {
@@ -69,9 +74,16 @@ func (client *ApiClient) Sign(ctx context.Context, pubKey string, request SignRe
 	if resp.StatusCode == http.StatusPreconditionFailed {
 		return nil, fmt.Errorf("signing operation failed due to slashing protection rules,  Signing Request URL: %v, Status: %v", client.BaseURL.String()+requestPath, resp.StatusCode)
 	}
-
-	return unmarshalSignatureResponse(resp.Body)
-
+	contentType := resp.Header.Get("Content-Type")
+	if strings.HasPrefix(contentType, "application/json") {
+		var sigResp SignatureResponse
+		if err := unmarshalResponse(resp.Body, &sigResp); err != nil {
+			return nil, err
+		}
+		return bls.SignatureFromBytes(sigResp.Signature)
+	} else {
+		return unmarshalSignatureResponse(resp.Body)
+	}
 }
 
 // GetPublicKeys is a wrapper method around the web3signer publickeys api (this may be removed in the future or moved to another location due to its usage).
@@ -181,7 +193,7 @@ func (client *ApiClient) doRequest(ctx context.Context, httpMethod, fullPath str
 func unmarshalResponse(responseBody io.ReadCloser, unmarshalledResponseObject interface{}) error {
 	defer closeBody(responseBody)
 	if err := json.NewDecoder(responseBody).Decode(&unmarshalledResponseObject); err != nil {
-		body, err := ioutil.ReadAll(responseBody)
+		body, err := io.ReadAll(responseBody)
 		if err != nil {
 			return errors.Wrap(err, "failed to read response body")
 		}
@@ -192,7 +204,7 @@ func unmarshalResponse(responseBody io.ReadCloser, unmarshalledResponseObject in
 
 func unmarshalSignatureResponse(responseBody io.ReadCloser) (bls.Signature, error) {
 	defer closeBody(responseBody)
-	body, err := ioutil.ReadAll(responseBody)
+	body, err := io.ReadAll(responseBody)
 	if err != nil {
 		return nil, err
 	}
@@ -206,6 +218,6 @@ func unmarshalSignatureResponse(responseBody io.ReadCloser) (bls.Signature, erro
 // closeBody a utility method to wrap an error for closing
 func closeBody(body io.Closer) {
 	if err := body.Close(); err != nil {
-		log.Errorf("could not close response body: %v", err)
+		log.WithError(err).Error("could not close response body")
 	}
 }

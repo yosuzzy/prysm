@@ -2,7 +2,7 @@ package types
 
 import (
 	"github.com/pkg/errors"
-	"github.com/prysmaticlabs/prysm/runtime/version"
+	"github.com/prysmaticlabs/prysm/v3/runtime/version"
 )
 
 // FieldIndex represents the relevant field position in the
@@ -24,6 +24,14 @@ const (
 	// trie.
 	CompressedArray
 )
+
+// BeaconStateField represents a field of the beacon state.
+type BeaconStateField interface {
+	String(stateVersion int) string
+	RealPosition() int
+	ElemsInChunk() (uint64, error)
+	Native() bool
+}
 
 // String returns the name of the field index.
 func (f FieldIndex) String(stateVersion int) string {
@@ -89,6 +97,12 @@ func (f FieldIndex) String(stateVersion int) string {
 	}
 }
 
+// RealPosition denotes the position of the field in the beacon state.
+// The value might differ for different state versions.
+func (f FieldIndex) RealPosition() int {
+	return int(f)
+}
+
 // ElemsInChunk returns the number of elements in the chunk (number of
 // elements that are able to be packed).
 func (f FieldIndex) ElemsInChunk() (uint64, error) {
@@ -98,6 +112,10 @@ func (f FieldIndex) ElemsInChunk() (uint64, error) {
 	default:
 		return 0, errors.Errorf("field %d doesn't support element compression", f)
 	}
+}
+
+func (FieldIndex) Native() bool {
+	return false
 }
 
 // Below we define a set of useful enum values for the field

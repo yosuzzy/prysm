@@ -4,11 +4,11 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	types "github.com/prysmaticlabs/eth2-types"
-	"github.com/prysmaticlabs/prysm/config/params"
-	"github.com/prysmaticlabs/prysm/container/slice"
-	"github.com/prysmaticlabs/prysm/crypto/hash"
-	"github.com/prysmaticlabs/prysm/encoding/bytesutil"
+	"github.com/prysmaticlabs/prysm/v3/config/params"
+	types "github.com/prysmaticlabs/prysm/v3/consensus-types/primitives"
+	"github.com/prysmaticlabs/prysm/v3/container/slice"
+	"github.com/prysmaticlabs/prysm/v3/crypto/hash"
+	"github.com/prysmaticlabs/prysm/v3/encoding/bytesutil"
 )
 
 const seedSize = int8(32)
@@ -96,8 +96,8 @@ func ComputeShuffledIndex(index types.ValidatorIndex, indexCount uint64, seed [3
 	copy(buf[:32], seed[:])
 	for {
 		buf[seedSize] = round
-		hash := hashfunc(buf[:pivotViewSize])
-		hash8 := hash[:8]
+		h := hashfunc(buf[:pivotViewSize])
+		hash8 := h[:8]
 		hash8Int := bytesutil.FromBytes8(hash8)
 		pivot := hash8Int % indexCount
 		flip := (pivot + indexCount - uint64(index)) % indexCount

@@ -5,17 +5,32 @@ package flags
 import (
 	"strings"
 
-	fieldparams "github.com/prysmaticlabs/prysm/config/fieldparams"
-	"github.com/prysmaticlabs/prysm/config/params"
+	"github.com/prysmaticlabs/prysm/v3/config/params"
 	"github.com/urfave/cli/v2"
 )
 
 var (
-	// HTTPWeb3ProviderFlag provides an HTTP access endpoint to an ETH 1.0 RPC.
-	HTTPWeb3ProviderFlag = &cli.StringFlag{
-		Name:  "http-web3provider",
-		Usage: "A mainchain web3 provider string http endpoint. Can contain auth header as well in the format --http-web3provider=\"https://goerli.infura.io/v3/xxxx,Basic xxx\" for project secret (base64 encoded) and --http-web3provider=\"https://goerli.infura.io/v3/xxxx,Bearer xxx\" for jwt use",
+	// MevRelayEndpoint provides an HTTP access endpoint to a MEV builder network.
+	MevRelayEndpoint = &cli.StringFlag{
+		Name:  "http-mev-relay",
+		Usage: "A MEV builder relay string http endpoint, this wil be used to interact MEV builder network using API defined in: https://ethereum.github.io/builder-specs/#/Builder",
 		Value: "",
+	}
+	MaxBuilderConsecutiveMissedSlots = &cli.IntFlag{
+		Name:  "max-builder-consecutive-missed-slots",
+		Usage: "Number of consecutive skip slot to fallback from using relay/builder to local execution engine for block construction",
+		Value: 3,
+	}
+	MaxBuilderEpochMissedSlots = &cli.IntFlag{
+		Name:  "max-builder-epoch-missed-slots",
+		Usage: "Number of total skip slot to fallback from using relay/builder to local execution engine for block construction in last epoch rolling window",
+		Value: 8,
+	}
+	// ExecutionEngineEndpoint provides an HTTP access endpoint to connect to an execution client on the execution layer
+	ExecutionEngineEndpoint = &cli.StringFlag{
+		Name:  "execution-endpoint",
+		Usage: "An execution client http endpoint. Can contain auth header as well in the format",
+		Value: "http://localhost:8551",
 	}
 	// ExecutionJWTSecretFlag provides a path to a file containing a hex-encoded string representing a 32 byte secret
 	// used to authenticate with an execution node via HTTP. This is required if using an HTTP connection, otherwise all requests
@@ -28,11 +43,6 @@ var (
 			"fail, which will prevent your validators from performing their duties. " +
 			"This is not required if using an IPC connection.",
 		Value: "",
-	}
-	// FallbackWeb3ProviderFlag provides a fallback endpoint to an ETH 1.0 RPC.
-	FallbackWeb3ProviderFlag = &cli.StringSliceFlag{
-		Name:  "fallback-web3provider",
-		Usage: "A mainchain web3 provider string http endpoint. This is our fallback web3 provider, this flag may be used multiple times.",
 	}
 	// DepositContractFlag defines a flag for the deposit contract address.
 	DepositContractFlag = &cli.StringFlag{
@@ -117,11 +127,6 @@ var (
 		Usage: "The percentage of freshly allocated data to live data on which the gc will be run again.",
 		Value: 100,
 	}
-	// HeadSync starts the beacon node from the previously saved head state and syncs from there.
-	HeadSync = &cli.BoolFlag{
-		Name:  "head-sync",
-		Usage: "Starts the beacon node with the previously saved head state instead of finalized state.",
-	}
 	// SafeSlotsToImportOptimistically specifies the number of slots that a
 	// node should wait before being able to optimistically sync blocks
 	// across the merge boundary
@@ -137,11 +142,6 @@ var (
 		Usage: "The slot durations of when an archived state gets saved in the beaconDB.",
 		Value: 2048,
 	}
-	// DisableDiscv5 disables running discv5.
-	DisableDiscv5 = &cli.BoolFlag{
-		Name:  "disable-discv5",
-		Usage: "Does not run the discoveryV5 dht.",
-	}
 	// BlockBatchLimit specifies the requested block batch size.
 	BlockBatchLimit = &cli.IntFlag{
 		Name:  "block-batch-limit",
@@ -153,12 +153,6 @@ var (
 		Name:  "block-batch-limit-burst-factor",
 		Usage: "The factor by which block batch limit may increase on burst.",
 		Value: 10,
-	}
-	// DisableSync disables a node from syncing at start-up. Instead the node enters regular sync
-	// immediately.
-	DisableSync = &cli.BoolFlag{
-		Name:  "disable-sync",
-		Usage: "Starts the beacon node without entering initial sync and instead exits to regular sync immediately.",
 	}
 	// EnableDebugRPCEndpoints as /v1/beacon/state.
 	EnableDebugRPCEndpoints = &cli.BoolFlag{
@@ -209,6 +203,27 @@ var (
 	SuggestedFeeRecipient = &cli.StringFlag{
 		Name:  "suggested-fee-recipient",
 		Usage: "Post bellatrix, this address will receive the transaction fees produced by any blocks from this node. Default to junk whilst bellatrix is in development state. Validator client can override this value through the preparebeaconproposer api.",
-		Value: fieldparams.EthBurnAddressHex,
+		Value: params.BeaconConfig().EthBurnAddressHex,
+	}
+	// TerminalTotalDifficultyOverride specifies the total difficulty to manual overrides the `TERMINAL_TOTAL_DIFFICULTY` parameter.
+	TerminalTotalDifficultyOverride = &cli.StringFlag{
+		Name: "terminal-total-difficulty-override",
+		Usage: "Sets the total difficulty to manual overrides the default TERMINAL_TOTAL_DIFFICULTY value. " +
+			"WARNING: This flag should be used only if you have a clear understanding that community has decided to override the terminal difficulty. " +
+			"Incorrect usage will result in your node experience consensus failure.",
+	}
+	// TerminalBlockHashOverride specifies the terminal block hash to manual overrides the `TERMINAL_BLOCK_HASH` parameter.
+	TerminalBlockHashOverride = &cli.StringFlag{
+		Name: "terminal-block-hash-override",
+		Usage: "Sets the block hash to manual overrides the default TERMINAL_BLOCK_HASH value. " +
+			"WARNING: This flag should be used only if you have a clear understanding that community has decided to override the terminal block hash. " +
+			"Incorrect usage will result in your node experience consensus failure.",
+	}
+	// TerminalBlockHashActivationEpochOverride specifies the terminal block hash epoch to manual overrides the `TERMINAL_BLOCK_HASH_ACTIVATION_EPOCH` parameter.
+	TerminalBlockHashActivationEpochOverride = &cli.Uint64Flag{
+		Name: "terminal-block-hash-epoch-override",
+		Usage: "Sets the block hash epoch to manual overrides the default TERMINAL_BLOCK_HASH_ACTIVATION_EPOCH value. " +
+			"WARNING: This flag should be used only if you have a clear understanding that community has decided to override the terminal block hash activation epoch. " +
+			"Incorrect usage will result in your node experience consensus failure.",
 	}
 )

@@ -4,18 +4,18 @@ import (
 	"math/rand"
 	"testing"
 
-	types "github.com/prysmaticlabs/eth2-types"
-	"github.com/prysmaticlabs/prysm/encoding/bytesutil"
-	ethpb "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
-	"github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1/block"
-	"github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1/wrapper"
-	"github.com/prysmaticlabs/prysm/testing/require"
+	"github.com/prysmaticlabs/prysm/v3/consensus-types/blocks"
+	"github.com/prysmaticlabs/prysm/v3/consensus-types/interfaces"
+	types "github.com/prysmaticlabs/prysm/v3/consensus-types/primitives"
+	"github.com/prysmaticlabs/prysm/v3/encoding/bytesutil"
+	ethpb "github.com/prysmaticlabs/prysm/v3/proto/prysm/v1alpha1"
+	"github.com/prysmaticlabs/prysm/v3/testing/require"
 )
 
 func TestSortedObj_SortBlocksRoots(t *testing.T) {
 	source := rand.NewSource(33)
 	randGen := rand.New(source)
-	var blks []block.SignedBeaconBlock
+	var blks []interfaces.SignedBeaconBlock
 	var roots [][32]byte
 	randFunc := func() int64 {
 		return randGen.Int63n(50)
@@ -23,7 +23,7 @@ func TestSortedObj_SortBlocksRoots(t *testing.T) {
 
 	for i := 0; i < 10; i++ {
 		slot := types.Slot(randFunc())
-		newBlk, err := wrapper.WrappedSignedBeaconBlock(&ethpb.SignedBeaconBlock{Block: &ethpb.BeaconBlock{Slot: slot}})
+		newBlk, err := blocks.NewSignedBeaconBlock(&ethpb.SignedBeaconBlock{Block: &ethpb.BeaconBlock{Slot: slot, Body: &ethpb.BeaconBlockBody{}}})
 		require.NoError(t, err)
 		blks = append(blks, newBlk)
 		root := bytesutil.ToBytes32(bytesutil.Bytes32(uint64(slot)))
@@ -49,7 +49,7 @@ func TestSortedObj_SortBlocksRoots(t *testing.T) {
 func TestSortedObj_NoDuplicates(t *testing.T) {
 	source := rand.NewSource(33)
 	randGen := rand.New(source)
-	var blks []block.SignedBeaconBlock
+	var blks []interfaces.SignedBeaconBlock
 	var roots [][32]byte
 	randFunc := func() int64 {
 		return randGen.Int63n(50)
@@ -57,11 +57,13 @@ func TestSortedObj_NoDuplicates(t *testing.T) {
 
 	for i := 0; i < 10; i++ {
 		slot := types.Slot(randFunc())
-		newBlk := &ethpb.SignedBeaconBlock{Block: &ethpb.BeaconBlock{Slot: slot}}
+		newBlk := &ethpb.SignedBeaconBlock{Block: &ethpb.BeaconBlock{Slot: slot, Body: &ethpb.BeaconBlockBody{}}}
 		// append twice
-		wsb, err := wrapper.WrappedSignedBeaconBlock(newBlk)
+		wsb, err := blocks.NewSignedBeaconBlock(newBlk)
 		require.NoError(t, err)
-		blks = append(blks, wsb, wsb.Copy())
+		wsbCopy, err := wsb.Copy()
+		require.NoError(t, err)
+		blks = append(blks, wsb, wsbCopy)
 
 		// append twice
 		root := bytesutil.ToBytes32(bytesutil.Bytes32(uint64(slot)))

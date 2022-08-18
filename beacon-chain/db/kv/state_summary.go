@@ -3,8 +3,8 @@ package kv
 import (
 	"context"
 
-	"github.com/prysmaticlabs/prysm/encoding/bytesutil"
-	ethpb "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
+	"github.com/prysmaticlabs/prysm/v3/encoding/bytesutil"
+	ethpb "github.com/prysmaticlabs/prysm/v3/proto/prysm/v1alpha1"
 	bolt "go.etcd.io/bbolt"
 	"go.opencensus.io/trace"
 )
@@ -64,7 +64,7 @@ func (s *Store) StateSummary(ctx context.Context, blockRoot [32]byte) (*ethpb.St
 
 // HasStateSummary returns true if a state summary exists in DB.
 func (s *Store) HasStateSummary(ctx context.Context, blockRoot [32]byte) bool {
-	_, span := trace.StartSpan(ctx, "BeaconDB.HasStateSummary")
+	ctx, span := trace.StartSpan(ctx, "BeaconDB.HasStateSummary")
 	defer span.End()
 
 	var hasSummary bool
@@ -109,4 +109,13 @@ func (s *Store) saveCachedStateSummariesDB(ctx context.Context) error {
 	}
 	s.stateSummaryCache.clear()
 	return nil
+}
+
+// deleteStateSummary deletes a state summary object from the db using input block root.
+func (s *Store) deleteStateSummary(blockRoot [32]byte) error {
+	s.stateSummaryCache.delete(blockRoot)
+	return s.db.Update(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket(stateSummaryBucket)
+		return bucket.Delete(blockRoot[:])
+	})
 }

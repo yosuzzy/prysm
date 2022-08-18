@@ -6,16 +6,16 @@ import (
 	"testing"
 
 	"github.com/bazelbuild/rules_go/go/tools/bazel"
-	"github.com/prysmaticlabs/prysm/config/params"
-	"github.com/prysmaticlabs/prysm/io/file"
-	"github.com/prysmaticlabs/prysm/testing/assert"
-	"github.com/prysmaticlabs/prysm/testing/require"
+	"github.com/prysmaticlabs/prysm/v3/config/params"
+	"github.com/prysmaticlabs/prysm/v3/io/file"
+	"github.com/prysmaticlabs/prysm/v3/testing/assert"
+	"github.com/prysmaticlabs/prysm/v3/testing/require"
 )
 
 func testnetConfigFilePath(t *testing.T, network string) string {
-	filepath, err := bazel.Runfile("external/eth2_networks")
+	fPath, err := bazel.Runfile("external/eth2_networks")
 	require.NoError(t, err)
-	configFilePath := path.Join(filepath, "shared", network, "config.yaml")
+	configFilePath := path.Join(fPath, "shared", network, "config.yaml")
 	return configFilePath
 }
 
@@ -28,7 +28,7 @@ func TestE2EConfigParity(t *testing.T) {
 	yamlObj := params.E2EMainnetConfigYaml()
 	assert.NoError(t, file.WriteFile(yamlDir, yamlObj))
 
-	params.LoadChainConfigFile(yamlDir, params.MainnetConfig().Copy())
+	require.NoError(t, params.LoadChainConfigFile(yamlDir, params.MainnetConfig().Copy()))
 
 	// compareConfigs makes it easier to figure out exactly what changed
 	compareConfigs(t, params.BeaconConfig(), testCfg)

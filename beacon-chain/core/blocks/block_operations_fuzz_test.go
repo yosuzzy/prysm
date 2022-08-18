@@ -5,14 +5,14 @@ import (
 	"testing"
 
 	fuzz "github.com/google/gofuzz"
-	types "github.com/prysmaticlabs/eth2-types"
-	v "github.com/prysmaticlabs/prysm/beacon-chain/core/validators"
-	v1 "github.com/prysmaticlabs/prysm/beacon-chain/state/v1"
-	fieldparams "github.com/prysmaticlabs/prysm/config/fieldparams"
-	"github.com/prysmaticlabs/prysm/config/params"
-	ethpb "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
-	"github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1/wrapper"
-	"github.com/prysmaticlabs/prysm/testing/require"
+	v "github.com/prysmaticlabs/prysm/v3/beacon-chain/core/validators"
+	v1 "github.com/prysmaticlabs/prysm/v3/beacon-chain/state/v1"
+	fieldparams "github.com/prysmaticlabs/prysm/v3/config/fieldparams"
+	"github.com/prysmaticlabs/prysm/v3/config/params"
+	"github.com/prysmaticlabs/prysm/v3/consensus-types/blocks"
+	types "github.com/prysmaticlabs/prysm/v3/consensus-types/primitives"
+	ethpb "github.com/prysmaticlabs/prysm/v3/proto/prysm/v1alpha1"
+	"github.com/prysmaticlabs/prysm/v3/testing/require"
 )
 
 func TestFuzzProcessAttestationNoVerify_10000(t *testing.T) {
@@ -42,7 +42,10 @@ func TestFuzzProcessBlockHeader_10000(t *testing.T) {
 
 		s, err := v1.InitializeFromProtoUnsafe(state)
 		require.NoError(t, err)
-		wsb, err := wrapper.WrappedSignedBeaconBlock(block)
+		if block.Block == nil || block.Block.Body == nil {
+			continue
+		}
+		wsb, err := blocks.NewSignedBeaconBlock(block)
 		require.NoError(t, err)
 		_, err = ProcessBlockHeader(context.Background(), s, wsb)
 		_ = err
@@ -143,7 +146,10 @@ func TestFuzzProcessRandao_10000(t *testing.T) {
 		fuzzer.Fuzz(b)
 		s, err := v1.InitializeFromProtoUnsafe(state)
 		require.NoError(t, err)
-		wsb, err := wrapper.WrappedSignedBeaconBlock(b)
+		if b.Block == nil || b.Block.Body == nil {
+			continue
+		}
+		wsb, err := blocks.NewSignedBeaconBlock(b)
 		require.NoError(t, err)
 		r, err := ProcessRandao(context.Background(), s, wsb)
 		if err != nil && r != nil {
@@ -264,7 +270,10 @@ func TestFuzzProcessAttestationsNoVerify_10000(t *testing.T) {
 		fuzzer.Fuzz(b)
 		s, err := v1.InitializeFromProtoUnsafe(state)
 		require.NoError(t, err)
-		wsb, err := wrapper.WrappedSignedBeaconBlock(b)
+		if b.Block == nil || b.Block.Body == nil {
+			continue
+		}
+		wsb, err := blocks.NewSignedBeaconBlock(b)
 		require.NoError(t, err)
 		r, err := ProcessAttestationsNoVerifySignature(ctx, s, wsb)
 		if err != nil && r != nil {

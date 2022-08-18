@@ -4,9 +4,9 @@
 package bls
 
 import (
-	"github.com/prysmaticlabs/prysm/crypto/bls/blst"
-	"github.com/prysmaticlabs/prysm/crypto/bls/common"
-	"github.com/prysmaticlabs/prysm/crypto/bls/herumi"
+	"github.com/prysmaticlabs/prysm/v3/crypto/bls/blst"
+	"github.com/prysmaticlabs/prysm/v3/crypto/bls/common"
+	"github.com/prysmaticlabs/prysm/v3/crypto/bls/herumi"
 )
 
 // Initialize herumi temporarily while we transition to blst for ethdo.
@@ -39,9 +39,19 @@ func AggregatePublicKeys(pubs [][]byte) (PublicKey, error) {
 	return blst.AggregatePublicKeys(pubs)
 }
 
+// AggregateMultiplePubkeys aggregates the provided decompressed keys into a single key.
+func AggregateMultiplePubkeys(pubs []PublicKey) PublicKey {
+	return blst.AggregateMultiplePubkeys(pubs)
+}
+
 // AggregateSignatures converts a list of signatures into a single, aggregated sig.
 func AggregateSignatures(sigs []common.Signature) common.Signature {
 	return blst.AggregateSignatures(sigs)
+}
+
+// AggregateCompressedSignatures converts a list of compressed signatures into a single, aggregated sig.
+func AggregateCompressedSignatures(multiSigs [][]byte) (common.Signature, error) {
+	return blst.AggregateCompressedSignatures(multiSigs)
 }
 
 // VerifyMultipleSignatures verifies multiple signatures for distinct messages securely.

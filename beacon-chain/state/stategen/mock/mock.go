@@ -3,10 +3,8 @@ package mock
 import (
 	"context"
 
-	types "github.com/prysmaticlabs/eth2-types"
-	"github.com/prysmaticlabs/prysm/beacon-chain/state"
-	ethpb "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
-	"github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1/block"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/state"
+	types "github.com/prysmaticlabs/prysm/v3/consensus-types/primitives"
 )
 
 // MockStateManager is a fake implementation of StateManager.
@@ -23,7 +21,7 @@ func NewMockService() *MockStateManager {
 	}
 }
 
-// StateByRootIfCached
+// StateByRootIfCachedNoCopy --
 func (_ *MockStateManager) StateByRootIfCachedNoCopy(_ [32]byte) state.BeaconState {
 	panic("implement me")
 }
@@ -43,32 +41,8 @@ func (_ *MockStateManager) MigrateToCold(_ context.Context, _ [32]byte) error {
 	panic("implement me")
 }
 
-// ReplayBlocks --
-func (_ *MockStateManager) ReplayBlocks(
-	_ context.Context,
-	_ state.BeaconState,
-	_ []block.SignedBeaconBlock,
-	_ types.Slot,
-) (state.BeaconState, error) {
-	panic("implement me")
-}
-
-// LoadBlocks --
-func (_ *MockStateManager) LoadBlocks(
-	_ context.Context,
-	_, _ types.Slot,
-	_ [32]byte,
-) ([]block.SignedBeaconBlock, error) {
-	panic("implement me")
-}
-
 // HasState --
 func (_ *MockStateManager) HasState(_ context.Context, _ [32]byte) (bool, error) {
-	panic("implement me")
-}
-
-// HasStateInCache --
-func (_ *MockStateManager) HasStateInCache(_ context.Context, _ [32]byte) (bool, error) {
 	panic("implement me")
 }
 
@@ -85,14 +59,6 @@ func (_ *MockStateManager) StateByRootInitialSync(_ context.Context, _ [32]byte)
 // StateBySlot --
 func (m *MockStateManager) StateBySlot(_ context.Context, slot types.Slot) (state.BeaconState, error) {
 	return m.StatesBySlot[slot], nil
-}
-
-// RecoverStateSummary --
-func (_ *MockStateManager) RecoverStateSummary(
-	_ context.Context,
-	_ [32]byte,
-) (*ethpb.StateSummary, error) {
-	panic("implement me")
 }
 
 // SaveState --
@@ -123,4 +89,9 @@ func (m *MockStateManager) AddStateForRoot(state state.BeaconState, blockRoot [3
 // AddStateForSlot --
 func (m *MockStateManager) AddStateForSlot(state state.BeaconState, slot types.Slot) {
 	m.StatesBySlot[slot] = state
+}
+
+// DeleteStateFromCaches --
+func (m *MockStateManager) DeleteStateFromCaches(context.Context, [32]byte) error {
+	return nil
 }

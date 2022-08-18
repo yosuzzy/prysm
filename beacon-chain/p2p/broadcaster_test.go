@@ -13,17 +13,17 @@ import (
 	"github.com/libp2p/go-libp2p-core/host"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/prysmaticlabs/go-bitfield"
-	"github.com/prysmaticlabs/prysm/beacon-chain/core/helpers"
-	"github.com/prysmaticlabs/prysm/beacon-chain/p2p/peers"
-	"github.com/prysmaticlabs/prysm/beacon-chain/p2p/peers/scorers"
-	p2ptest "github.com/prysmaticlabs/prysm/beacon-chain/p2p/testing"
-	"github.com/prysmaticlabs/prysm/encoding/bytesutil"
-	ethpb "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
-	"github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1/wrapper"
-	testpb "github.com/prysmaticlabs/prysm/proto/testing"
-	"github.com/prysmaticlabs/prysm/testing/assert"
-	"github.com/prysmaticlabs/prysm/testing/require"
-	"github.com/prysmaticlabs/prysm/testing/util"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/core/helpers"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/p2p/peers"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/p2p/peers/scorers"
+	p2ptest "github.com/prysmaticlabs/prysm/v3/beacon-chain/p2p/testing"
+	"github.com/prysmaticlabs/prysm/v3/consensus-types/wrapper"
+	"github.com/prysmaticlabs/prysm/v3/encoding/bytesutil"
+	ethpb "github.com/prysmaticlabs/prysm/v3/proto/prysm/v1alpha1"
+	testpb "github.com/prysmaticlabs/prysm/v3/proto/testing"
+	"github.com/prysmaticlabs/prysm/v3/testing/assert"
+	"github.com/prysmaticlabs/prysm/v3/testing/require"
+	"github.com/prysmaticlabs/prysm/v3/testing/util"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -332,7 +332,7 @@ func TestService_BroadcastAttestationWithDiscoveryAttempts(t *testing.T) {
 
 	// External peer subscribes to the topic.
 	topic += p.Encoding().ProtocolSuffix()
-	// We dont use our internal subscribe method
+	// We don't use our internal subscribe method
 	// due to using floodsub over here.
 	tpHandle, err := p2.JoinTopic(topic)
 	require.NoError(t, err)
@@ -346,11 +346,11 @@ func TestService_BroadcastAttestationWithDiscoveryAttempts(t *testing.T) {
 
 	time.Sleep(500 * time.Millisecond) // libp2p fails without this delay...
 
-	peers := p.pubsub.ListPeers(topic)
-	peers2 := p2.pubsub.ListPeers(topic)
+	nodePeers := p.pubsub.ListPeers(topic)
+	nodePeers2 := p2.pubsub.ListPeers(topic)
 
-	assert.Equal(t, 1, len(peers))
-	assert.Equal(t, 1, len(peers2))
+	assert.Equal(t, 1, len(nodePeers))
+	assert.Equal(t, 1, len(nodePeers2))
 
 	// Async listen for the pubsub, must be before the broadcast.
 	var wg sync.WaitGroup

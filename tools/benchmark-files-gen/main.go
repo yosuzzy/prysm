@@ -3,26 +3,25 @@ package main
 import (
 	"context"
 	"flag"
-	"io/ioutil"
-	"log"
 	"os"
 	"path"
 
 	"github.com/pkg/errors"
-	types "github.com/prysmaticlabs/eth2-types"
-	"github.com/prysmaticlabs/prysm/beacon-chain/core/helpers"
-	"github.com/prysmaticlabs/prysm/beacon-chain/core/signing"
-	"github.com/prysmaticlabs/prysm/beacon-chain/core/time"
-	"github.com/prysmaticlabs/prysm/beacon-chain/core/transition"
-	"github.com/prysmaticlabs/prysm/beacon-chain/state"
-	v1 "github.com/prysmaticlabs/prysm/beacon-chain/state/v1"
-	"github.com/prysmaticlabs/prysm/config/params"
-	"github.com/prysmaticlabs/prysm/io/file"
-	ethpb "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
-	"github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1/wrapper"
-	"github.com/prysmaticlabs/prysm/runtime/interop"
-	"github.com/prysmaticlabs/prysm/testing/benchmark"
-	"github.com/prysmaticlabs/prysm/testing/util"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/core/helpers"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/core/signing"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/core/time"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/core/transition"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/state"
+	v1 "github.com/prysmaticlabs/prysm/v3/beacon-chain/state/v1"
+	"github.com/prysmaticlabs/prysm/v3/config/params"
+	"github.com/prysmaticlabs/prysm/v3/consensus-types/blocks"
+	types "github.com/prysmaticlabs/prysm/v3/consensus-types/primitives"
+	"github.com/prysmaticlabs/prysm/v3/io/file"
+	ethpb "github.com/prysmaticlabs/prysm/v3/proto/prysm/v1alpha1"
+	"github.com/prysmaticlabs/prysm/v3/runtime/interop"
+	"github.com/prysmaticlabs/prysm/v3/testing/benchmark"
+	"github.com/prysmaticlabs/prysm/v3/testing/util"
+	log "github.com/sirupsen/logrus"
 )
 
 var (
@@ -52,19 +51,24 @@ func main() {
 		log.Fatal(err)
 	}
 
+	undo, err := benchmark.SetBenchmarkConfig()
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer undo()
 	log.Printf("Output dir is: %s", *outputDir)
 	log.Println("Generating genesis state")
 	// Generating this for the 2 following states.
 	if err := generateGenesisBeaconState(); err != nil {
-		log.Fatalf("Could not generate genesis state: %v", err)
+		log.WithError(err).Fatal("Could not generate genesis state")
 	}
 	log.Println("Generating full block and state after 1 skipped epoch")
 	if err := generateMarshalledFullStateAndBlock(); err != nil {
-		log.Fatalf("Could not generate full state and block: %v", err)
+		log.WithError(err).Fatal("Could not generate full state and block")
 	}
 	log.Println("Generating state after 2 fully attested epochs")
 	if err := generate2FullEpochState(); err != nil {
-		log.Fatalf("Could not generate 2 full epoch state: %v", err)
+		log.WithError(err).Fatal("Could not generate 2 full epoch state")
 	}
 	// Removing the genesis state SSZ since its 10MB large and no longer needed.
 	if err := os.Remove(path.Join(*outputDir, benchmark.GenesisFileName)); err != nil {
@@ -85,7 +89,6 @@ func generateGenesisBeaconState() error {
 }
 
 func generateMarshalledFullStateAndBlock() error {
-	benchmark.SetBenchmarkConfig()
 	beaconState, err := genesisBeaconState()
 	if err != nil {
 		return err
@@ -98,13 +101,13 @@ func generateMarshalledFullStateAndBlock() error {
 
 	conf := &util.BlockGenConfig{}
 	slotsPerEpoch := params.BeaconConfig().SlotsPerEpoch
-	// Small offset for the beacon state so we dont process a block on an epoch.
+	// Small offset for the beacon state so we don't process a block on an epoch.
 	slotOffset := types.Slot(2)
 	block, err := util.GenerateFullBlock(beaconState, privs, conf, slotsPerEpoch+slotOffset)
 	if err != nil {
 		return err
 	}
-	wsb, err := wrapper.WrappedSignedBeaconBlock(block)
+	wsb, err := blocks.NewSignedBeaconBlock(block)
 	if err != nil {
 		return err
 	}
@@ -132,7 +135,7 @@ func generateMarshalledFullStateAndBlock() error {
 	}
 	block.Block.Body.Attestations = append(atts, block.Block.Body.Attestations...)
 
-	wsb, err = wrapper.WrappedSignedBeaconBlock(block)
+	wsb, err = blocks.NewSignedBeaconBlock(block)
 	if err != nil {
 		return err
 	}
@@ -167,7 +170,7 @@ func generateMarshalledFullStateAndBlock() error {
 	}
 
 	// Running a single state transition to make sure the generated files aren't broken.
-	wsb, err = wrapper.WrappedSignedBeaconBlock(block)
+	wsb, err = blocks.NewSignedBeaconBlock(block)
 	if err != nil {
 		return err
 	}
@@ -185,7 +188,6 @@ func generateMarshalledFullStateAndBlock() error {
 }
 
 func generate2FullEpochState() error {
-	benchmark.SetBenchmarkConfig()
 	beaconState, err := genesisBeaconState()
 	if err != nil {
 		return err
@@ -205,7 +207,7 @@ func generate2FullEpochState() error {
 		if err != nil {
 			return err
 		}
-		wsb, err := wrapper.WrappedSignedBeaconBlock(block)
+		wsb, err := blocks.NewSignedBeaconBlock(block)
 		if err != nil {
 			return err
 		}
@@ -224,7 +226,7 @@ func generate2FullEpochState() error {
 }
 
 func genesisBeaconState() (state.BeaconState, error) {
-	beaconBytes, err := ioutil.ReadFile(path.Join(*outputDir, benchmark.GenesisFileName))
+	beaconBytes, err := os.ReadFile(path.Join(*outputDir, benchmark.GenesisFileName))
 	if err != nil {
 		return nil, errors.Wrap(err, "cannot read genesis state file")
 	}

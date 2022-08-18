@@ -1,16 +1,15 @@
 //go:build fuzz && go1.18
-// +build fuzz,go1.18
 
 package ssz_test
 
 import (
 	"testing"
 
-	fssz "github.com/ferranbt/fastssz"
 	"github.com/pkg/errors"
-	"github.com/prysmaticlabs/prysm/config/params"
-	"github.com/prysmaticlabs/prysm/encoding/ssz"
-	pb "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
+	fssz "github.com/prysmaticlabs/fastssz"
+	"github.com/prysmaticlabs/prysm/v3/config/params"
+	"github.com/prysmaticlabs/prysm/v3/encoding/ssz"
+	pb "github.com/prysmaticlabs/prysm/v3/proto/prysm/v1alpha1"
 )
 
 func FuzzUint64Root(f *testing.F) {

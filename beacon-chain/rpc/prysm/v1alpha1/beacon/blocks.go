@@ -5,21 +5,21 @@ import (
 	"strconv"
 
 	"github.com/pkg/errors"
-	"github.com/prysmaticlabs/prysm/api/pagination"
-	"github.com/prysmaticlabs/prysm/async/event"
-	"github.com/prysmaticlabs/prysm/beacon-chain/core/blocks"
-	"github.com/prysmaticlabs/prysm/beacon-chain/core/feed"
-	blockfeed "github.com/prysmaticlabs/prysm/beacon-chain/core/feed/block"
-	statefeed "github.com/prysmaticlabs/prysm/beacon-chain/core/feed/state"
-	"github.com/prysmaticlabs/prysm/beacon-chain/core/helpers"
-	"github.com/prysmaticlabs/prysm/beacon-chain/db/filters"
-	"github.com/prysmaticlabs/prysm/cmd"
-	"github.com/prysmaticlabs/prysm/config/params"
-	"github.com/prysmaticlabs/prysm/encoding/bytesutil"
-	ethpb "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
-	"github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1/block"
-	"github.com/prysmaticlabs/prysm/runtime/version"
-	"github.com/prysmaticlabs/prysm/time/slots"
+	"github.com/prysmaticlabs/prysm/v3/api/pagination"
+	"github.com/prysmaticlabs/prysm/v3/async/event"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/core/blocks"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/core/feed"
+	blockfeed "github.com/prysmaticlabs/prysm/v3/beacon-chain/core/feed/block"
+	statefeed "github.com/prysmaticlabs/prysm/v3/beacon-chain/core/feed/state"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/db/filters"
+	"github.com/prysmaticlabs/prysm/v3/cmd"
+	"github.com/prysmaticlabs/prysm/v3/config/params"
+	consensusblocks "github.com/prysmaticlabs/prysm/v3/consensus-types/blocks"
+	"github.com/prysmaticlabs/prysm/v3/consensus-types/interfaces"
+	"github.com/prysmaticlabs/prysm/v3/encoding/bytesutil"
+	ethpb "github.com/prysmaticlabs/prysm/v3/proto/prysm/v1alpha1"
+	"github.com/prysmaticlabs/prysm/v3/runtime/version"
+	"github.com/prysmaticlabs/prysm/v3/time/slots"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -28,34 +28,9 @@ import (
 // blockContainer represents an instance of
 // block along with its relevant metadata.
 type blockContainer struct {
-	blk         block.SignedBeaconBlock
+	blk         interfaces.SignedBeaconBlock
 	root        [32]byte
 	isCanonical bool
-}
-
-// ListBlocks retrieves blocks by root, slot, or epoch.
-//
-// The server may return multiple blocks in the case that a slot or epoch is
-// provided as the filter criteria. The server may return an empty list when
-// no blocks in their database match the filter criteria. This RPC should
-// not return NOT_FOUND. Only one filter criteria should be used.
-func (bs *Server) ListBlocks(
-	ctx context.Context, req *ethpb.ListBlocksRequest,
-) (*ethpb.ListBlocksResponse, error) {
-	ctrs, numBlks, nextPageToken, err := bs.listBlocks(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-	blkContainers, err := convertToProto(ctrs)
-	if err != nil {
-		return nil, err
-	}
-
-	return &ethpb.ListBlocksResponse{
-		BlockContainers: blkContainers,
-		TotalSize:       int32(numBlks),
-		NextPageToken:   nextPageToken,
-	}, nil
 }
 
 // ListBeaconBlocks retrieves blocks by root, slot, or epoch.
@@ -114,7 +89,7 @@ func convertFromV1Containers(ctrs []blockContainer) ([]*ethpb.BeaconBlockContain
 	return protoCtrs, nil
 }
 
-func convertToBlockContainer(blk block.SignedBeaconBlock, root [32]byte, isCanonical bool) (*ethpb.BeaconBlockContainer, error) {
+func convertToBlockContainer(blk interfaces.SignedBeaconBlock, root [32]byte, isCanonical bool) (*ethpb.BeaconBlockContainer, error) {
 	ctr := &ethpb.BeaconBlockContainer{
 		BlockRoot: root[:],
 		Canonical: isCanonical,
@@ -134,11 +109,19 @@ func convertToBlockContainer(blk block.SignedBeaconBlock, root [32]byte, isCanon
 		}
 		ctr.Block = &ethpb.BeaconBlockContainer_AltairBlock{AltairBlock: rBlk}
 	case version.Bellatrix:
-		rBlk, err := blk.PbBellatrixBlock()
-		if err != nil {
-			return nil, err
+		if blk.IsBlinded() {
+			rBlk, err := blk.PbBlindedBellatrixBlock()
+			if err != nil {
+				return nil, err
+			}
+			ctr.Block = &ethpb.BeaconBlockContainer_BlindedBellatrixBlock{BlindedBellatrixBlock: rBlk}
+		} else {
+			rBlk, err := blk.PbBellatrixBlock()
+			if err != nil {
+				return nil, err
+			}
+			ctr.Block = &ethpb.BeaconBlockContainer_BellatrixBlock{BellatrixBlock: rBlk}
 		}
-		ctr.Block = &ethpb.BeaconBlockContainer_BellatrixBlock{BellatrixBlock: rBlk}
 	default:
 		return nil, errors.Errorf("block type is not recognized: %d", blk.Version())
 	}
@@ -209,11 +192,11 @@ func (bs *Server) listBlocksForRoot(ctx context.Context, _ *ethpb.ListBlocksRequ
 
 // listBlocksForSlot retrieves all blocks for the provided slot.
 func (bs *Server) listBlocksForSlot(ctx context.Context, req *ethpb.ListBlocksRequest, q *ethpb.ListBlocksRequest_Slot) ([]blockContainer, int, string, error) {
-	hasBlocks, blks, err := bs.BeaconDB.BlocksBySlot(ctx, q.Slot)
+	blks, err := bs.BeaconDB.BlocksBySlot(ctx, q.Slot)
 	if err != nil {
 		return nil, 0, strconv.Itoa(0), status.Errorf(codes.Internal, "Could not retrieve blocks for slot %d: %v", q.Slot, err)
 	}
-	if !hasBlocks {
+	if len(blks) == 0 {
 		return []blockContainer{}, 0, strconv.Itoa(0), nil
 	}
 
@@ -250,7 +233,7 @@ func (bs *Server) listBlocksForGenesis(ctx context.Context, _ *ethpb.ListBlocksR
 	if err != nil {
 		return nil, 0, strconv.Itoa(0), status.Errorf(codes.Internal, "Could not retrieve blocks for genesis slot: %v", err)
 	}
-	if err := helpers.BeaconBlockIsNil(genBlk); err != nil {
+	if err := consensusblocks.BeaconBlockIsNil(genBlk); err != nil {
 		return []blockContainer{}, 0, strconv.Itoa(0), status.Errorf(codes.NotFound, "Could not find genesis block: %v", err)
 	}
 	root, err := genBlk.Block().HashTreeRoot()
@@ -262,23 +245,6 @@ func (bs *Server) listBlocksForGenesis(ctx context.Context, _ *ethpb.ListBlocksR
 		root:        root,
 		isCanonical: true,
 	}}, 1, strconv.Itoa(0), nil
-}
-
-func convertToProto(ctrs []blockContainer) ([]*ethpb.BeaconBlockContainer, error) {
-	protoCtrs := make([]*ethpb.BeaconBlockContainer, len(ctrs))
-	for i, c := range ctrs {
-		phBlk, err := c.blk.PbPhase0Block()
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "Could not get phase 0 block: %v", err)
-		}
-		copiedRoot := c.root
-		protoCtrs[i] = &ethpb.BeaconBlockContainer{
-			Block:     &ethpb.BeaconBlockContainer_Phase0Block{Phase0Block: phBlk},
-			BlockRoot: copiedRoot[:],
-			Canonical: c.isCanonical,
-		}
-	}
-	return protoCtrs, nil
 }
 
 // GetChainHead retrieves information about the head of the beacon chain from
@@ -393,7 +359,11 @@ func (bs *Server) chainHeadRetrieval(ctx context.Context) (*ethpb.ChainHead, err
 	if err != nil {
 		return nil, status.Error(codes.Internal, "Could not get head block")
 	}
-	if err := helpers.BeaconBlockIsNil(headBlock); err != nil {
+	optimisticStatus, err := bs.OptimisticModeFetcher.IsOptimistic(ctx)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "Could not get optimistic status")
+	}
+	if err := consensusblocks.BeaconBlockIsNil(headBlock); err != nil {
 		return nil, status.Errorf(codes.NotFound, "Head block of chain was nil: %v", err)
 	}
 	headBlockRoot, err := headBlock.Block().HashTreeRoot()
@@ -409,7 +379,7 @@ func (bs *Server) chainHeadRetrieval(ctx context.Context) (*ethpb.ChainHead, err
 			}
 			// Retrieve genesis block in the event we have genesis checkpoints.
 			genBlock, err := bs.BeaconDB.GenesisBlock(ctx)
-			if err != nil || helpers.BeaconBlockIsNil(genBlock) != nil {
+			if err != nil || consensusblocks.BeaconBlockIsNil(genBlock) != nil {
 				return status.Error(codes.Internal, "Could not get genesis block")
 			}
 			validGenesis = true
@@ -419,7 +389,7 @@ func (bs *Server) chainHeadRetrieval(ctx context.Context) (*ethpb.ChainHead, err
 		if err != nil {
 			return status.Errorf(codes.Internal, "Could not get %s block: %v", name, err)
 		}
-		if err := helpers.BeaconBlockIsNil(b); err != nil {
+		if err := consensusblocks.BeaconBlockIsNil(b); err != nil {
 			return status.Errorf(codes.Internal, "Could not get %s block: %v", name, err)
 		}
 		return nil
@@ -465,5 +435,6 @@ func (bs *Server) chainHeadRetrieval(ctx context.Context) (*ethpb.ChainHead, err
 		PreviousJustifiedSlot:      pjSlot,
 		PreviousJustifiedEpoch:     prevJustifiedCheckpoint.Epoch,
 		PreviousJustifiedBlockRoot: prevJustifiedCheckpoint.Root,
+		OptimisticStatus:           optimisticStatus,
 	}, nil
 }

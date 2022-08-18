@@ -3,9 +3,10 @@ package v1
 import (
 	"fmt"
 
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/pkg/errors"
-	validatorpb "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1/validator-client"
+	"github.com/prysmaticlabs/prysm/v3/consensus-types/blocks"
+	"github.com/prysmaticlabs/prysm/v3/consensus-types/interfaces"
+	validatorpb "github.com/prysmaticlabs/prysm/v3/proto/prysm/v1alpha1/validator-client"
 )
 
 // GetBlockSignRequest maps the request for signing type BLOCK.
@@ -28,12 +29,12 @@ func GetBlockSignRequest(request *validatorpb.SignRequest, genesisValidatorsRoot
 	return &BlockSignRequest{
 		Type:        "BLOCK",
 		ForkInfo:    fork,
-		SigningRoot: hexutil.Encode(request.SigningRoot),
+		SigningRoot: request.SigningRoot,
 		Block: &BeaconBlock{
 			Slot:          fmt.Sprint(beaconBlock.Block.Slot),
 			ProposerIndex: fmt.Sprint(beaconBlock.Block.ProposerIndex),
-			ParentRoot:    hexutil.Encode(beaconBlock.Block.ParentRoot),
-			StateRoot:     hexutil.Encode(beaconBlock.Block.StateRoot),
+			ParentRoot:    beaconBlock.Block.ParentRoot,
+			StateRoot:     beaconBlock.Block.StateRoot,
 			Body:          beaconBlockBody,
 		},
 	}, nil
@@ -55,7 +56,7 @@ func GetAggregationSlotSignRequest(request *validatorpb.SignRequest, genesisVali
 	return &AggregationSlotSignRequest{
 		Type:        "AGGREGATION_SLOT",
 		ForkInfo:    fork,
-		SigningRoot: hexutil.Encode(request.SigningRoot),
+		SigningRoot: request.SigningRoot,
 		AggregationSlot: &AggregationSlot{
 			Slot: fmt.Sprint(aggregationSlot.Slot),
 		},
@@ -82,7 +83,7 @@ func GetAggregateAndProofSignRequest(request *validatorpb.SignRequest, genesisVa
 	return &AggregateAndProofSignRequest{
 		Type:              "AGGREGATE_AND_PROOF",
 		ForkInfo:          fork,
-		SigningRoot:       hexutil.Encode(request.SigningRoot),
+		SigningRoot:       request.SigningRoot,
 		AggregateAndProof: aggregateAndProof,
 	}, nil
 }
@@ -107,35 +108,35 @@ func GetAttestationSignRequest(request *validatorpb.SignRequest, genesisValidato
 	return &AttestationSignRequest{
 		Type:        "ATTESTATION",
 		ForkInfo:    fork,
-		SigningRoot: hexutil.Encode(request.SigningRoot),
+		SigningRoot: request.SigningRoot,
 		Attestation: attestationData,
 	}, nil
 }
 
-// GetBlockV2AltairSignRequest maps the request for signing type BLOCK_V2.
-func GetBlockV2AltairSignRequest(request *validatorpb.SignRequest, genesisValidatorsRoot []byte) (*BlockV2AltairSignRequest, error) {
-	beaconBlockV2, ok := request.Object.(*validatorpb.SignRequest_BlockV2)
+// GetBlockAltairSignRequest maps the request for signing type BLOCK_V2.
+func GetBlockAltairSignRequest(request *validatorpb.SignRequest, genesisValidatorsRoot []byte) (*BlockAltairSignRequest, error) {
+	beaconBlockAltair, ok := request.Object.(*validatorpb.SignRequest_BlockAltair)
 	if !ok {
-		return nil, errors.New("failed to cast request object to block v2")
+		return nil, errors.New("failed to cast request object to block altair")
 	}
-	if beaconBlockV2 == nil {
+	if beaconBlockAltair == nil {
 		return nil, errors.New("invalid sign request: BeaconBlock is nil")
 	}
 	fork, err := MapForkInfo(request.SigningSlot, genesisValidatorsRoot)
 	if err != nil {
 		return nil, err
 	}
-	beaconBlockAltair, err := MapBeaconBlockAltair(beaconBlockV2.BlockV2)
+	blockAltair, err := MapBeaconBlockAltair(beaconBlockAltair.BlockAltair)
 	if err != nil {
 		return nil, err
 	}
-	return &BlockV2AltairSignRequest{
+	return &BlockAltairSignRequest{
 		Type:        "BLOCK_V2",
 		ForkInfo:    fork,
-		SigningRoot: hexutil.Encode(request.SigningRoot),
+		SigningRoot: request.SigningRoot,
 		BeaconBlock: &BeaconBlockAltairBlockV2{
 			Version: "ALTAIR",
-			Block:   beaconBlockAltair,
+			Block:   blockAltair,
 		},
 	}, nil
 }
@@ -156,7 +157,7 @@ func GetRandaoRevealSignRequest(request *validatorpb.SignRequest, genesisValidat
 	return &RandaoRevealSignRequest{
 		Type:        "RANDAO_REVEAL",
 		ForkInfo:    fork,
-		SigningRoot: hexutil.Encode(request.SigningRoot),
+		SigningRoot: request.SigningRoot,
 		RandaoReveal: &RandaoReveal{
 			Epoch: fmt.Sprint(randaoReveal.Epoch),
 		},
@@ -179,7 +180,7 @@ func GetVoluntaryExitSignRequest(request *validatorpb.SignRequest, genesisValida
 	return &VoluntaryExitSignRequest{
 		Type:        "VOLUNTARY_EXIT",
 		ForkInfo:    fork,
-		SigningRoot: hexutil.Encode(request.SigningRoot),
+		SigningRoot: request.SigningRoot,
 		VoluntaryExit: &VoluntaryExit{
 			ValidatorIndex: fmt.Sprint(voluntaryExit.Exit.ValidatorIndex),
 			Epoch:          fmt.Sprint(voluntaryExit.Exit.Epoch),
@@ -206,9 +207,9 @@ func GetSyncCommitteeMessageSignRequest(request *validatorpb.SignRequest, genesi
 	return &SyncCommitteeMessageSignRequest{
 		Type:        "SYNC_COMMITTEE_MESSAGE",
 		ForkInfo:    fork,
-		SigningRoot: hexutil.Encode(request.SigningRoot),
+		SigningRoot: request.SigningRoot,
 		SyncCommitteeMessage: &SyncCommitteeMessage{
-			BeaconBlockRoot: hexutil.Encode(syncCommitteeMessage.SyncMessageBlockRoot),
+			BeaconBlockRoot: syncCommitteeMessage.SyncMessageBlockRoot,
 			Slot:            fmt.Sprint(request.SigningSlot),
 		},
 	}, nil
@@ -216,6 +217,9 @@ func GetSyncCommitteeMessageSignRequest(request *validatorpb.SignRequest, genesi
 
 // GetSyncCommitteeSelectionProofSignRequest maps the request for signing type SYNC_COMMITTEE_SELECTION_PROOF.
 func GetSyncCommitteeSelectionProofSignRequest(request *validatorpb.SignRequest, genesisValidatorsRoot []byte) (*SyncCommitteeSelectionProofSignRequest, error) {
+	if request == nil {
+		return nil, errors.New("nil sign request provided")
+	}
 	syncCommitteeSelectionProof, ok := request.Object.(*validatorpb.SignRequest_SyncAggregatorSelectionData)
 	if !ok {
 		return nil, errors.New("failed to cast request object to sync committee selection proof")
@@ -234,13 +238,16 @@ func GetSyncCommitteeSelectionProofSignRequest(request *validatorpb.SignRequest,
 	return &SyncCommitteeSelectionProofSignRequest{
 		Type:                        "SYNC_COMMITTEE_SELECTION_PROOF",
 		ForkInfo:                    fork,
-		SigningRoot:                 hexutil.Encode(request.SigningRoot),
+		SigningRoot:                 request.SigningRoot,
 		SyncAggregatorSelectionData: aggregatorSelectionData,
 	}, nil
 }
 
 // GetSyncCommitteeContributionAndProofSignRequest maps the request for signing type SYNC_COMMITTEE_CONTRIBUTION_AND_PROOF.
 func GetSyncCommitteeContributionAndProofSignRequest(request *validatorpb.SignRequest, genesisValidatorsRoot []byte) (*SyncCommitteeContributionAndProofSignRequest, error) {
+	if request == nil {
+		return nil, errors.New("nil sign request provided")
+	}
 	syncCommitteeContributionAndProof, ok := request.Object.(*validatorpb.SignRequest_ContributionAndProof)
 	if !ok {
 		return nil, errors.New("failed to cast request object to sync committee contribution and proof")
@@ -259,7 +266,91 @@ func GetSyncCommitteeContributionAndProofSignRequest(request *validatorpb.SignRe
 	return &SyncCommitteeContributionAndProofSignRequest{
 		Type:                 "SYNC_COMMITTEE_CONTRIBUTION_AND_PROOF",
 		ForkInfo:             fork,
-		SigningRoot:          hexutil.Encode(request.SigningRoot),
+		SigningRoot:          request.SigningRoot,
 		ContributionAndProof: contribution,
+	}, nil
+}
+
+// GetBlockBellatrixSignRequest maps the request for signing type BLOCK_V2_BELLATRIX.
+func GetBlockBellatrixSignRequest(request *validatorpb.SignRequest, genesisValidatorsRoot []byte) (*BlockBellatrixSignRequest, error) {
+	if request == nil {
+		return nil, errors.New("nil sign request provided")
+	}
+	var b interfaces.BeaconBlock
+	switch request.Object.(type) {
+	case *validatorpb.SignRequest_BlindedBlockBellatrix:
+		blindedBlockBellatrix, ok := request.Object.(*validatorpb.SignRequest_BlindedBlockBellatrix)
+		if !ok {
+			return nil, errors.New("failed to cast request object to blinded block bellatrix")
+		}
+		if blindedBlockBellatrix == nil {
+			return nil, errors.New("invalid sign request - blindedBlockBellatrix is nil")
+		}
+		beaconBlock, err := blocks.NewBeaconBlock(blindedBlockBellatrix.BlindedBlockBellatrix)
+		if err != nil {
+			return nil, err
+		}
+		b = beaconBlock
+	case *validatorpb.SignRequest_BlockBellatrix:
+		blockBellatrix, ok := request.Object.(*validatorpb.SignRequest_BlockBellatrix)
+		if !ok {
+			return nil, errors.New("failed to cast request object to block v3 bellatrix")
+		}
+
+		if blockBellatrix == nil {
+			return nil, errors.New("invalid sign request: blockBellatrix is nil")
+		}
+		beaconBlock, err := blocks.NewBeaconBlock(blockBellatrix.BlockBellatrix)
+		if err != nil {
+			return nil, err
+		}
+		b = beaconBlock
+	default:
+		return nil, errors.New("invalid sign request - invalid object type")
+	}
+	fork, err := MapForkInfo(request.SigningSlot, genesisValidatorsRoot)
+	if err != nil {
+		return nil, err
+	}
+	beaconBlockHeader, err := interfaces.BeaconBlockHeaderFromBlockInterface(b)
+	if err != nil {
+		return nil, err
+	}
+	return &BlockBellatrixSignRequest{
+		Type:        "BLOCK_V2",
+		ForkInfo:    fork,
+		SigningRoot: request.SigningRoot,
+		BeaconBlock: &BeaconBlockBellatrixBlockV2{
+			Version: "BELLATRIX",
+			BlockHeader: &BeaconBlockHeader{
+				Slot:          fmt.Sprint(beaconBlockHeader.Slot),
+				ProposerIndex: fmt.Sprint(beaconBlockHeader.ProposerIndex),
+				ParentRoot:    beaconBlockHeader.ParentRoot,
+				StateRoot:     beaconBlockHeader.StateRoot,
+				BodyRoot:      beaconBlockHeader.BodyRoot,
+			},
+		},
+	}, nil
+}
+
+// GetValidatorRegistrationSignRequest maps the request for signing type VALIDATOR_REGISTRATION.
+func GetValidatorRegistrationSignRequest(request *validatorpb.SignRequest) (*ValidatorRegistrationSignRequest, error) {
+	if request == nil {
+		return nil, errors.New("nil sign request provided")
+	}
+	validatorRegistrationRequest, ok := request.Object.(*validatorpb.SignRequest_Registration)
+	if !ok {
+		return nil, errors.New("failed to cast request object to validator registration")
+	}
+	registration := validatorRegistrationRequest.Registration
+	return &ValidatorRegistrationSignRequest{
+		Type:        "VALIDATOR_REGISTRATION",
+		SigningRoot: request.SigningRoot,
+		ValidatorRegistration: &ValidatorRegistration{
+			FeeRecipient: registration.FeeRecipient,
+			GasLimit:     fmt.Sprint(registration.GasLimit),
+			Timestamp:    fmt.Sprint(registration.Timestamp),
+			Pubkey:       registration.Pubkey,
+		},
 	}, nil
 }

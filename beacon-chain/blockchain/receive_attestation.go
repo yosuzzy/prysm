@@ -7,14 +7,14 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/prysmaticlabs/prysm/async/event"
-	"github.com/prysmaticlabs/prysm/beacon-chain/core/feed"
-	"github.com/prysmaticlabs/prysm/beacon-chain/core/helpers"
-	"github.com/prysmaticlabs/prysm/beacon-chain/state"
-	"github.com/prysmaticlabs/prysm/config/params"
-	"github.com/prysmaticlabs/prysm/encoding/bytesutil"
-	ethpb "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
-	"github.com/prysmaticlabs/prysm/time/slots"
+	"github.com/prysmaticlabs/prysm/v3/async/event"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/core/feed"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/core/helpers"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/state"
+	"github.com/prysmaticlabs/prysm/v3/config/params"
+	"github.com/prysmaticlabs/prysm/v3/encoding/bytesutil"
+	ethpb "github.com/prysmaticlabs/prysm/v3/proto/prysm/v1alpha1"
+	"github.com/prysmaticlabs/prysm/v3/time/slots"
 	"github.com/sirupsen/logrus"
 	"go.opencensus.io/trace"
 )
@@ -28,25 +28,8 @@ type AttestationStateFetcher interface {
 // AttestationReceiver interface defines the methods of chain service receive and processing new attestations.
 type AttestationReceiver interface {
 	AttestationStateFetcher
-	ReceiveAttestationNoPubsub(ctx context.Context, att *ethpb.Attestation) error
 	VerifyLmdFfgConsistency(ctx context.Context, att *ethpb.Attestation) error
 	VerifyFinalizedConsistency(ctx context.Context, root []byte) error
-}
-
-// ReceiveAttestationNoPubsub is a function that defines the operations that are performed on
-// attestation that is received from regular sync. The operations consist of:
-//  1. Validate attestation, update validator's latest vote
-//  2. Apply fork choice to the processed attestation
-//  3. Save latest head info
-func (s *Service) ReceiveAttestationNoPubsub(ctx context.Context, att *ethpb.Attestation) error {
-	ctx, span := trace.StartSpan(ctx, "beacon-chain.blockchain.ReceiveAttestationNoPubsub")
-	defer span.End()
-
-	if err := s.OnAttestation(ctx, att); err != nil {
-		return errors.Wrap(err, "could not process attestation")
-	}
-
-	return nil
 }
 
 // AttestationTargetState returns the pre state of attestation.
@@ -83,14 +66,12 @@ func (s *Service) VerifyLmdFfgConsistency(ctx context.Context, a *ethpb.Attestat
 func (s *Service) VerifyFinalizedConsistency(ctx context.Context, root []byte) error {
 	// A canonical root implies the root to has an ancestor that aligns with finalized check point.
 	// In this case, we could exit early to save on additional computation.
-	if s.cfg.ForkChoiceStore.IsCanonical(bytesutil.ToBytes32(root)) {
+	blockRoot := bytesutil.ToBytes32(root)
+	if s.cfg.ForkChoiceStore.HasNode(blockRoot) && s.cfg.ForkChoiceStore.IsCanonical(blockRoot) {
 		return nil
 	}
 
 	f := s.FinalizedCheckpt()
-	if f == nil {
-		return errNilFinalizedInStore
-	}
 	ss, err := slots.EpochStart(f.Epoch)
 	if err != nil {
 		return err
@@ -139,59 +120,95 @@ func (s *Service) spawnProcessAttestationsRoutine(stateFeed *event.Feed) {
 			case <-s.ctx.Done():
 				return
 			case <-st.C():
-				if err := s.NewSlot(s.ctx, s.CurrentSlot()); err != nil {
+				if err := s.ForkChoicer().NewSlot(s.ctx, s.CurrentSlot()); err != nil {
 					log.WithError(err).Error("Could not process new slot")
 					return
 				}
 
-				// Continue when there's no fork choice attestation, there's nothing to process and update head.
-				// This covers the condition when the node is still initial syncing to the head of the chain.
-				if s.cfg.AttPool.ForkchoiceAttestationCount() == 0 {
-					continue
+				if err := s.UpdateHead(s.ctx); err != nil {
+					log.WithError(err).Error("Could not process attestations and update head")
+					return
 				}
-				s.processAttestations(s.ctx)
-
-				justified := s.store.JustifiedCheckpt()
-				if justified == nil {
-					log.WithError(errNilJustifiedInStore).Error("Could not get justified checkpoint")
-					continue
-				}
-				balances, err := s.justifiedBalances.get(s.ctx, bytesutil.ToBytes32(justified.Root))
-				if err != nil {
-					log.WithError(err).Errorf("Unable to get justified balances for root %v", justified.Root)
-					continue
-				}
-				newHeadRoot, err := s.updateHead(s.ctx, balances)
-				if err != nil {
-					log.WithError(err).Warn("Resolving fork due to new attestation")
-				}
-				s.notifyEngineIfChangedHead(s.ctx, newHeadRoot)
 			}
 		}
 	}()
 }
 
-// This calls notify Forkchoice Update in the event that the head has changed
-func (s *Service) notifyEngineIfChangedHead(ctx context.Context, newHeadRoot [32]byte) {
-	if s.headRoot() == newHeadRoot {
-		return
+// UpdateHead updates the canonical head of the chain based on information from fork-choice attestations and votes.
+// It requires no external inputs.
+func (s *Service) UpdateHead(ctx context.Context) error {
+	// Continue when there's no fork choice attestation, there's nothing to process and update head.
+	// This covers the condition when the node is still initial syncing to the head of the chain.
+	if s.cfg.AttPool.ForkchoiceAttestationCount() == 0 {
+		return nil
 	}
-	finalized := s.store.FinalizedCheckpt()
-	if finalized == nil {
-		log.WithError(errNilFinalizedInStore).Error("could not get finalized checkpoint")
-		return
-	}
-	_, err := s.notifyForkchoiceUpdate(s.ctx,
-		s.headBlock().Block(),
-		s.headRoot(),
-		bytesutil.ToBytes32(finalized.Root),
-	)
+
+	// Only one process can process attestations and update head at a time.
+	s.processAttestationsLock.Lock()
+	defer s.processAttestationsLock.Unlock()
+
+	s.processAttestations(ctx)
+
+	justified := s.ForkChoicer().JustifiedCheckpoint()
+	balances, err := s.justifiedBalances.get(ctx, justified.Root)
 	if err != nil {
-		log.WithError(err).Error("could not notify forkchoice update")
+		return err
 	}
-	if err := s.saveHead(ctx, newHeadRoot); err != nil {
+	newHeadRoot, err := s.cfg.ForkChoiceStore.Head(ctx, balances)
+	if err != nil {
+		log.WithError(err).Warn("Resolving fork due to new attestation")
+	}
+	s.headLock.RLock()
+	if s.headRoot() != newHeadRoot {
+		log.WithFields(logrus.Fields{
+			"oldHeadRoot": fmt.Sprintf("%#x", s.headRoot()),
+			"newHeadRoot": fmt.Sprintf("%#x", newHeadRoot),
+		}).Debug("Head changed due to attestations")
+	}
+	s.headLock.RUnlock()
+	if err := s.notifyEngineIfChangedHead(ctx, newHeadRoot); err != nil {
+		return err
+	}
+	return nil
+}
+
+// This calls notify Forkchoice Update in the event that the head has changed
+func (s *Service) notifyEngineIfChangedHead(ctx context.Context, newHeadRoot [32]byte) error {
+	s.headLock.RLock()
+	if newHeadRoot == [32]byte{} || s.headRoot() == newHeadRoot {
+		s.headLock.RUnlock()
+		return nil
+	}
+	s.headLock.RUnlock()
+
+	if !s.hasBlockInInitSyncOrDB(ctx, newHeadRoot) {
+		log.Debug("New head does not exist in DB. Do nothing")
+		return nil // We don't have the block, don't notify the engine and update head.
+	}
+
+	newHeadBlock, err := s.getBlock(ctx, newHeadRoot)
+	if err != nil {
+		log.WithError(err).Error("Could not get new head block")
+		return nil
+	}
+	headState, err := s.cfg.StateGen.StateByRoot(ctx, newHeadRoot)
+	if err != nil {
+		log.WithError(err).Error("Could not get state from db")
+		return nil
+	}
+	arg := &notifyForkchoiceUpdateArg{
+		headState: headState,
+		headRoot:  newHeadRoot,
+		headBlock: newHeadBlock.Block(),
+	}
+	_, err = s.notifyForkchoiceUpdate(s.ctx, arg)
+	if err != nil {
+		return err
+	}
+	if err := s.saveHead(ctx, newHeadRoot, newHeadBlock, headState); err != nil {
 		log.WithError(err).Error("could not save head")
 	}
+	return nil
 }
 
 // This processes fork choice attestations from the pool to account for validator votes and fork choice.
@@ -220,7 +237,7 @@ func (s *Service) processAttestations(ctx context.Context) {
 			continue
 		}
 
-		if err := s.ReceiveAttestationNoPubsub(ctx, a); err != nil {
+		if err := s.receiveAttestationNoPubsub(ctx, a); err != nil {
 			log.WithFields(logrus.Fields{
 				"slot":             a.Data.Slot,
 				"committeeIndex":   a.Data.CommitteeIndex,
@@ -230,4 +247,20 @@ func (s *Service) processAttestations(ctx context.Context) {
 			}).WithError(err).Warn("Could not process attestation for fork choice")
 		}
 	}
+}
+
+// receiveAttestationNoPubsub is a function that defines the operations that are performed on
+// attestation that is received from regular sync. The operations consist of:
+//  1. Validate attestation, update validator's latest vote
+//  2. Apply fork choice to the processed attestation
+//  3. Save latest head info
+func (s *Service) receiveAttestationNoPubsub(ctx context.Context, att *ethpb.Attestation) error {
+	ctx, span := trace.StartSpan(ctx, "beacon-chain.blockchain.receiveAttestationNoPubsub")
+	defer span.End()
+
+	if err := s.OnAttestation(ctx, att); err != nil {
+		return errors.Wrap(err, "could not process attestation")
+	}
+
+	return nil
 }

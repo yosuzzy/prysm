@@ -5,12 +5,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/prysmaticlabs/prysm/testing/assert"
-	"github.com/prysmaticlabs/prysm/testing/require"
-	"github.com/prysmaticlabs/prysm/validator/keymanager"
-	"github.com/prysmaticlabs/prysm/validator/keymanager/derived"
-	"github.com/prysmaticlabs/prysm/validator/keymanager/local"
-	"github.com/prysmaticlabs/prysm/validator/keymanager/remote"
+	"github.com/prysmaticlabs/prysm/v3/testing/assert"
+	"github.com/prysmaticlabs/prysm/v3/testing/require"
+	"github.com/prysmaticlabs/prysm/v3/validator/keymanager"
+	"github.com/prysmaticlabs/prysm/v3/validator/keymanager/derived"
+	"github.com/prysmaticlabs/prysm/v3/validator/keymanager/local"
+	"github.com/prysmaticlabs/prysm/v3/validator/keymanager/remote"
+	remoteweb3signer "github.com/prysmaticlabs/prysm/v3/validator/keymanager/remote-web3signer"
 )
 
 var (
@@ -25,6 +26,9 @@ var (
 	_ = keymanager.Importer(&derived.Keymanager{})
 	_ = keymanager.Deleter(&local.Keymanager{})
 	_ = keymanager.Deleter(&derived.Keymanager{})
+
+	_ = keymanager.PublicKeyAdder(&remoteweb3signer.Keymanager{})
+	_ = keymanager.PublicKeyDeleter(&remoteweb3signer.Keymanager{})
 )
 
 func TestKeystoreContainsPath(t *testing.T) {

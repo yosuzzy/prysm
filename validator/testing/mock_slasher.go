@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	eth "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
+	eth "github.com/prysmaticlabs/prysm/v3/proto/prysm/v1alpha1"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
 )
@@ -18,7 +18,7 @@ type MockSlasher struct {
 }
 
 // HighestAttestations will return an empty array of attestations.
-func (MockSlasher) HighestAttestations(ctx context.Context, req *eth.HighestAttestationRequest, _ ...grpc.CallOption) (*eth.HighestAttestationResponse, error) {
+func (MockSlasher) HighestAttestations(_ context.Context, _ *eth.HighestAttestationRequest, _ ...grpc.CallOption) (*eth.HighestAttestationResponse, error) {
 	return &eth.HighestAttestationResponse{
 		Attestations: nil,
 	}, nil

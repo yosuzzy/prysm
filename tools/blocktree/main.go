@@ -16,11 +16,10 @@ import (
 	"strconv"
 
 	"github.com/emicklei/dot"
-	types "github.com/prysmaticlabs/eth2-types"
-	"github.com/prysmaticlabs/prysm/beacon-chain/db"
-	"github.com/prysmaticlabs/prysm/beacon-chain/db/filters"
-	"github.com/prysmaticlabs/prysm/beacon-chain/db/kv"
-	"github.com/prysmaticlabs/prysm/encoding/bytesutil"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/db"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/db/filters"
+	types "github.com/prysmaticlabs/prysm/v3/consensus-types/primitives"
+	"github.com/prysmaticlabs/prysm/v3/encoding/bytesutil"
 )
 
 var (
@@ -39,7 +38,7 @@ type node struct {
 
 func main() {
 	flag.Parse()
-	db, err := db.NewDB(context.Background(), *datadir, &kv.Config{})
+	database, err := db.NewDB(context.Background(), *datadir)
 	if err != nil {
 		panic(err)
 	}
@@ -51,7 +50,7 @@ func main() {
 	startSlot := types.Slot(*startSlot)
 	endSlot := types.Slot(*endSlot)
 	filter := filters.NewFilter().SetStartSlot(startSlot).SetEndSlot(endSlot)
-	blks, roots, err := db.Blocks(context.Background(), filter)
+	blks, roots, err := database.Blocks(context.Background(), filter)
 	if err != nil {
 		panic(err)
 	}
@@ -63,7 +62,7 @@ func main() {
 		r := roots[i]
 		m[r] = &node{score: make(map[uint64]bool)}
 
-		state, err := db.State(context.Background(), r)
+		state, err := database.State(context.Background(), r)
 		if err != nil {
 			panic(err)
 		}
@@ -71,11 +70,11 @@ func main() {
 		// If the state is not available, roll back
 		for state == nil {
 			slot--
-			_, rts, err := db.BlockRootsBySlot(context.Background(), slot)
+			_, rts, err := database.BlockRootsBySlot(context.Background(), slot)
 			if err != nil {
 				panic(err)
 			}
-			state, err = db.State(context.Background(), rts[0])
+			state, err = database.State(context.Background(), rts[0])
 			if err != nil {
 				panic(err)
 			}

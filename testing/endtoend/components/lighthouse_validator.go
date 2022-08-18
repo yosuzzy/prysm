@@ -9,28 +9,31 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/bazelbuild/rules_go/go/tools/bazel"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
-	"github.com/prysmaticlabs/prysm/config/params"
-	"github.com/prysmaticlabs/prysm/io/file"
-	"github.com/prysmaticlabs/prysm/runtime/interop"
-	"github.com/prysmaticlabs/prysm/testing/endtoend/helpers"
-	e2e "github.com/prysmaticlabs/prysm/testing/endtoend/params"
-	e2etypes "github.com/prysmaticlabs/prysm/testing/endtoend/types"
-	"github.com/prysmaticlabs/prysm/validator/keymanager"
+	"github.com/prysmaticlabs/prysm/v3/config/params"
+	"github.com/prysmaticlabs/prysm/v3/io/file"
+	"github.com/prysmaticlabs/prysm/v3/runtime/interop"
+	"github.com/prysmaticlabs/prysm/v3/testing/endtoend/helpers"
+	e2e "github.com/prysmaticlabs/prysm/v3/testing/endtoend/params"
+	e2etypes "github.com/prysmaticlabs/prysm/v3/testing/endtoend/types"
+	"github.com/prysmaticlabs/prysm/v3/validator/keymanager"
 	keystorev4 "github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4"
 )
 
 var _ e2etypes.ComponentRunner = (*LighthouseValidatorNode)(nil)
 var _ e2etypes.ComponentRunner = (*LighthouseValidatorNodeSet)(nil)
+var _ e2etypes.MultipleComponentRunners = (*LighthouseValidatorNodeSet)(nil)
 
 // LighthouseValidatorNodeSet represents set of lighthouse validator nodes.
 type LighthouseValidatorNodeSet struct {
 	e2etypes.ComponentRunner
 	config  *e2etypes.E2EConfig
 	started chan struct{}
+	nodes   []e2etypes.ComponentRunner
 }
 
 // NewLighthouseValidatorNodeSet creates and returns a set of lighthouse validator nodes.
@@ -59,11 +62,12 @@ func (s *LighthouseValidatorNodeSet) Start(ctx context.Context) error {
 		offsetIdx := i + prysmBeaconNum
 		nodes[i] = NewLighthouseValidatorNode(s.config, validatorsPerNode, i, validatorsPerNode*offsetIdx)
 	}
+	s.nodes = nodes
 
 	// Wait for all nodes to finish their job (blocking).
 	// Once nodes are ready passed in handler function will be called.
 	return helpers.WaitOnNodes(ctx, nodes, func() {
-		// All nodes stated, close channel, so that all services waiting on a set, can proceed.
+		// All nodes started, close channel, so that all services waiting on a set, can proceed.
 		close(s.started)
 	})
 }
@@ -71,6 +75,68 @@ func (s *LighthouseValidatorNodeSet) Start(ctx context.Context) error {
 // Started checks whether validator node set is started and all nodes are ready to be queried.
 func (s *LighthouseValidatorNodeSet) Started() <-chan struct{} {
 	return s.started
+}
+
+// Pause pauses the component and its underlying process.
+func (s *LighthouseValidatorNodeSet) Pause() error {
+	for _, n := range s.nodes {
+		if err := n.Pause(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Resume resumes the component and its underlying process.
+func (s *LighthouseValidatorNodeSet) Resume() error {
+	for _, n := range s.nodes {
+		if err := n.Resume(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Stop stops the component and its underlying process.
+func (s *LighthouseValidatorNodeSet) Stop() error {
+	for _, n := range s.nodes {
+		if err := n.Stop(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// PauseAtIndex pauses the component and its underlying process at the desired index.
+func (s *LighthouseValidatorNodeSet) PauseAtIndex(i int) error {
+	if i >= len(s.nodes) {
+		return errors.Errorf("provided index exceeds slice size: %d >= %d", i, len(s.nodes))
+	}
+	return s.nodes[i].Pause()
+}
+
+// ResumeAtIndex resumes the component and its underlying process at the desired index.
+func (s *LighthouseValidatorNodeSet) ResumeAtIndex(i int) error {
+	if i >= len(s.nodes) {
+		return errors.Errorf("provided index exceeds slice size: %d >= %d", i, len(s.nodes))
+	}
+	return s.nodes[i].Resume()
+}
+
+// StopAtIndex stops the component and its underlying process at the desired index.
+func (s *LighthouseValidatorNodeSet) StopAtIndex(i int) error {
+	if i >= len(s.nodes) {
+		return errors.Errorf("provided index exceeds slice size: %d >= %d", i, len(s.nodes))
+	}
+	return s.nodes[i].Stop()
+}
+
+// ComponentAtIndex returns the component at the provided index.
+func (s *LighthouseValidatorNodeSet) ComponentAtIndex(i int) (e2etypes.ComponentRunner, error) {
+	if i >= len(s.nodes) {
+		return nil, errors.Errorf("provided index exceeds slice size: %d >= %d", i, len(s.nodes))
+	}
+	return s.nodes[i], nil
 }
 
 // LighthouseValidatorNode represents a lighthouse validator node.
@@ -81,6 +147,7 @@ type LighthouseValidatorNode struct {
 	validatorNum int
 	index        int
 	offset       int
+	cmd          *exec.Cmd
 }
 
 // NewLighthouseValidatorNode creates and returns a lighthouse validator node.
@@ -155,6 +222,7 @@ func (v *LighthouseValidatorNode) Start(ctx context.Context) error {
 
 	// Mark node as ready.
 	close(v.started)
+	v.cmd = cmd
 
 	return cmd.Wait()
 }
@@ -162,6 +230,21 @@ func (v *LighthouseValidatorNode) Start(ctx context.Context) error {
 // Started checks whether validator node is started and ready to be queried.
 func (v *LighthouseValidatorNode) Started() <-chan struct{} {
 	return v.started
+}
+
+// Pause pauses the component and its underlying process.
+func (v *LighthouseValidatorNode) Pause() error {
+	return v.cmd.Process.Signal(syscall.SIGSTOP)
+}
+
+// Resume resumes the component and its underlying process.
+func (v *LighthouseValidatorNode) Resume() error {
+	return v.cmd.Process.Signal(syscall.SIGCONT)
+}
+
+// Stop stops the component and its underlying process.
+func (v *LighthouseValidatorNode) Stop() error {
+	return v.cmd.Process.Kill()
 }
 
 type KeystoreGenerator struct {
@@ -172,7 +255,7 @@ func NewKeystoreGenerator() *KeystoreGenerator {
 	return &KeystoreGenerator{started: make(chan struct{})}
 }
 
-func (k *KeystoreGenerator) Start(ctx context.Context) error {
+func (k *KeystoreGenerator) Start(_ context.Context) error {
 	validatorNum := int(params.BeaconConfig().MinGenesisActiveValidatorCount)
 	lighthouseBeaconNum := e2e.TestParams.LighthouseBeaconNodeCount
 	prysmBeaconNum := e2e.TestParams.BeaconNodeCount
@@ -197,6 +280,24 @@ func (k *KeystoreGenerator) Start(ctx context.Context) error {
 
 func (k *KeystoreGenerator) Started() <-chan struct{} {
 	return k.started
+}
+
+// Pause pauses the component and its underlying process.
+func (k *KeystoreGenerator) Pause() error {
+	// no-op
+	return nil
+}
+
+// Resume resumes the component and its underlying process.
+func (k *KeystoreGenerator) Resume() error {
+	// no-op
+	return nil
+}
+
+// Stop stops the component and its underlying process.
+func (k *KeystoreGenerator) Stop() error {
+	// no-op
+	return nil
 }
 
 func setupKeystores(valClientIdx, startIdx, numOfKeys int) (string, error) {

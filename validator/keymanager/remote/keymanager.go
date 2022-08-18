@@ -8,7 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -16,14 +16,14 @@ import (
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/logrusorgru/aurora"
 	"github.com/pkg/errors"
-	"github.com/prysmaticlabs/prysm/async/event"
-	fieldparams "github.com/prysmaticlabs/prysm/config/fieldparams"
-	"github.com/prysmaticlabs/prysm/crypto/bls"
-	"github.com/prysmaticlabs/prysm/encoding/bytesutil"
-	ethpbservice "github.com/prysmaticlabs/prysm/proto/eth/service"
-	validatorpb "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1/validator-client"
-	"github.com/prysmaticlabs/prysm/validator/keymanager"
-	remote_utils "github.com/prysmaticlabs/prysm/validator/keymanager/remote-utils"
+	"github.com/prysmaticlabs/prysm/v3/async/event"
+	fieldparams "github.com/prysmaticlabs/prysm/v3/config/fieldparams"
+	"github.com/prysmaticlabs/prysm/v3/crypto/bls"
+	"github.com/prysmaticlabs/prysm/v3/encoding/bytesutil"
+	ethpbservice "github.com/prysmaticlabs/prysm/v3/proto/eth/service"
+	validatorpb "github.com/prysmaticlabs/prysm/v3/proto/prysm/v1alpha1/validator-client"
+	"github.com/prysmaticlabs/prysm/v3/validator/keymanager"
+	remoteutils "github.com/prysmaticlabs/prysm/v3/validator/keymanager/remote-utils"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
@@ -98,7 +98,7 @@ func NewKeymanager(_ context.Context, cfg *SetupConfig) (*Keymanager, error) {
 		// Load the CA for the server certificate if present.
 		cp := x509.NewCertPool()
 		if cfg.Opts.RemoteCertificate.CACertPath != "" {
-			serverCA, err := ioutil.ReadFile(cfg.Opts.RemoteCertificate.CACertPath)
+			serverCA, err := os.ReadFile(cfg.Opts.RemoteCertificate.CACertPath)
 			if err != nil {
 				return nil, errors.Wrap(err, "failed to obtain server's CA certificate")
 			}
@@ -143,13 +143,13 @@ func NewKeymanager(_ context.Context, cfg *SetupConfig) (*Keymanager, error) {
 // UnmarshalOptionsFile attempts to JSON unmarshal a keymanager
 // options file into a struct.
 func UnmarshalOptionsFile(r io.ReadCloser) (*KeymanagerOpts, error) {
-	enc, err := ioutil.ReadAll(r)
+	enc, err := io.ReadAll(r)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not read config")
 	}
 	defer func() {
 		if err := r.Close(); err != nil {
-			log.Errorf("Could not close keymanager config file: %v", err)
+			log.WithError(err).Error("Could not close keymanager config file")
 		}
 	}()
 	opts := &KeymanagerOpts{
@@ -273,7 +273,7 @@ func (km *Keymanager) SubscribeAccountChanges(pubKeysChan chan [][fieldparams.BL
 
 // ExtractKeystores is not supported for the remote keymanager type.
 func (*Keymanager) ExtractKeystores(
-	ctx context.Context, publicKeys []bls.PublicKey, password string,
+	_ context.Context, _ []bls.PublicKey, _ string,
 ) ([]*keymanager.Keystore, error) {
 	return nil, errors.New("extracting keys not supported for a remote keymanager")
 }
@@ -309,6 +309,6 @@ func ListKeymanagerAccountsImpl(ctx context.Context, cfg keymanager.ListKeymanag
 	} else {
 		fmt.Printf("Showing %d validator accounts\n", len(validatingPubKeys))
 	}
-	remote_utils.DisplayRemotePublicKeys(validatingPubKeys)
+	remoteutils.DisplayRemotePublicKeys(validatingPubKeys)
 	return nil
 }

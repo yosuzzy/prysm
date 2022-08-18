@@ -6,15 +6,21 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/golang/protobuf/ptypes/empty"
-	fieldparams "github.com/prysmaticlabs/prysm/config/fieldparams"
-	"github.com/prysmaticlabs/prysm/encoding/bytesutil"
-	ethpbservice "github.com/prysmaticlabs/prysm/proto/eth/service"
-	"github.com/prysmaticlabs/prysm/validator/keymanager"
-	"github.com/prysmaticlabs/prysm/validator/keymanager/derived"
-	slashingprotection "github.com/prysmaticlabs/prysm/validator/slashing-protection-history"
-	"github.com/prysmaticlabs/prysm/validator/slashing-protection-history/format"
+	fieldparams "github.com/prysmaticlabs/prysm/v3/config/fieldparams"
+	"github.com/prysmaticlabs/prysm/v3/config/params"
+	validatorServiceConfig "github.com/prysmaticlabs/prysm/v3/config/validator/service"
+	"github.com/prysmaticlabs/prysm/v3/encoding/bytesutil"
+	ethpbservice "github.com/prysmaticlabs/prysm/v3/proto/eth/service"
+	"github.com/prysmaticlabs/prysm/v3/validator/keymanager"
+	"github.com/prysmaticlabs/prysm/v3/validator/keymanager/derived"
+	slashingprotection "github.com/prysmaticlabs/prysm/v3/validator/slashing-protection-history"
+	"github.com/prysmaticlabs/prysm/v3/validator/slashing-protection-history/format"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -30,7 +36,7 @@ func (s *Server) ListKeystores(
 	}
 	km, err := s.validatorService.Keymanager()
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "Could not get Prysm keymanager: %v", err)
+		return nil, status.Errorf(codes.Internal, "Could not get Prysm keymanager (possibly due to beacon node unavailable): %v", err)
 	}
 	if s.wallet.KeymanagerKind() != keymanager.Derived && s.wallet.KeymanagerKind() != keymanager.Local {
 		return nil, status.Errorf(codes.FailedPrecondition, "Prysm validator keys are not stored locally with this keymanager type.")
@@ -67,7 +73,7 @@ func (s *Server) ImportKeystores(
 	}
 	km, err := s.validatorService.Keymanager()
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "Could not get keymanager: %v", err)
+		return nil, status.Errorf(codes.Internal, "Could not get keymanager (possibly due to beacon node unavailable): %v", err)
 	}
 	importer, ok := km.(keymanager.Importer)
 	if !ok {
@@ -150,7 +156,7 @@ func (s *Server) DeleteKeystores(
 	}
 	km, err := s.validatorService.Keymanager()
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "Could not get keymanager: %v", err)
+		return nil, status.Errorf(codes.Internal, "Could not get keymanager (possibly due to beacon node unavailable): %v", err)
 	}
 	if len(req.Pubkeys) == 0 {
 		return &ethpbservice.DeleteKeystoresResponse{Data: make([]*ethpbservice.DeletedKeystoreStatus, 0)}, nil
@@ -167,7 +173,7 @@ func (s *Server) DeleteKeystores(
 
 	exportedHistory, err := s.slashingProtectionHistoryForDeletedKeys(ctx, req.Pubkeys, statuses)
 	if err != nil {
-		log.Warnf("Could not get slashing protection history for deleted keys: %v", err)
+		log.WithError(err).Warn("Could not get slashing protection history for deleted keys")
 		statuses := groupExportErrors(req, "Non duplicate keys that were existing were deleted, but could not export slashing protection history.")
 		return &ethpbservice.DeleteKeystoresResponse{Data: statuses}, nil
 	}
@@ -250,4 +256,342 @@ func (s *Server) slashingProtectionHistoryForDeletedKeys(
 		}
 	}
 	return slashingprotection.ExportStandardProtectionJSON(ctx, s.valDB, filteredKeys...)
+}
+
+// ListRemoteKeys returns a list of all public keys defined for web3signer keymanager type.
+func (s *Server) ListRemoteKeys(ctx context.Context, _ *empty.Empty) (*ethpbservice.ListRemoteKeysResponse, error) {
+	if !s.walletInitialized {
+		return nil, status.Error(codes.FailedPrecondition, "Prysm Wallet not initialized. Please create a new wallet.")
+	}
+	if s.validatorService == nil {
+		return nil, status.Error(codes.FailedPrecondition, "Validator service not ready.")
+	}
+	km, err := s.validatorService.Keymanager()
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Could not get Prysm keymanager (possibly due to beacon node unavailable): %v", err)
+	}
+	if s.wallet.KeymanagerKind() != keymanager.Web3Signer {
+		return nil, status.Errorf(codes.FailedPrecondition, "Prysm Wallet is not of type Web3Signer. Please execute validator client with web3signer flags.")
+	}
+	pubKeys, err := km.FetchValidatingPublicKeys(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Could not retrieve keystores: %v", err)
+	}
+	keystoreResponse := make([]*ethpbservice.ListRemoteKeysResponse_Keystore, len(pubKeys))
+	for i := 0; i < len(pubKeys); i++ {
+		keystoreResponse[i] = &ethpbservice.ListRemoteKeysResponse_Keystore{
+			Pubkey:   pubKeys[i][:],
+			Url:      s.validatorService.Web3SignerConfig.BaseEndpoint,
+			Readonly: true,
+		}
+	}
+	return &ethpbservice.ListRemoteKeysResponse{
+		Data: keystoreResponse,
+	}, nil
+}
+
+// ImportRemoteKeys imports a list of public keys defined for web3signer keymanager type.
+func (s *Server) ImportRemoteKeys(ctx context.Context, req *ethpbservice.ImportRemoteKeysRequest) (*ethpbservice.ImportRemoteKeysResponse, error) {
+	if !s.walletInitialized {
+		return nil, status.Error(codes.FailedPrecondition, "Prysm Wallet not initialized. Please create a new wallet.")
+	}
+	if s.validatorService == nil {
+		return nil, status.Error(codes.FailedPrecondition, "Validator service not ready.")
+	}
+	km, err := s.validatorService.Keymanager()
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, fmt.Sprintf("Could not get Prysm keymanager (possibly due to beacon node unavailable): %v", err))
+	}
+	if s.wallet.KeymanagerKind() != keymanager.Web3Signer {
+		return nil, status.Errorf(codes.FailedPrecondition, "Prysm Wallet is not of type Web3Signer. Please execute validator client with web3signer flags.")
+	}
+	adder, ok := km.(keymanager.PublicKeyAdder)
+	if !ok {
+		statuses := groupImportRemoteKeysErrors(req, "Keymanager kind cannot import public keys for web3signer keymanager type.")
+		return &ethpbservice.ImportRemoteKeysResponse{Data: statuses}, nil
+	}
+
+	remoteKeys := make([][fieldparams.BLSPubkeyLength]byte, len(req.RemoteKeys))
+	isUrlUsed := false
+	for i, obj := range req.RemoteKeys {
+		remoteKeys[i] = bytesutil.ToBytes48(obj.Pubkey)
+		if obj.Url != "" {
+			isUrlUsed = true
+		}
+	}
+	if isUrlUsed {
+		log.Warnf("Setting web3signer base url for imported keys is not supported. Prysm only uses the url from --validators-external-signer-url flag for web3signer.")
+	}
+
+	statuses, err := adder.AddPublicKeys(ctx, remoteKeys)
+	if err != nil {
+		sts := groupImportRemoteKeysErrors(req, fmt.Sprintf("Could not add keys;error: %v", err))
+		return &ethpbservice.ImportRemoteKeysResponse{Data: sts}, nil
+	}
+	return &ethpbservice.ImportRemoteKeysResponse{
+		Data: statuses,
+	}, nil
+}
+
+func groupImportRemoteKeysErrors(req *ethpbservice.ImportRemoteKeysRequest, errorMessage string) []*ethpbservice.ImportedRemoteKeysStatus {
+	statuses := make([]*ethpbservice.ImportedRemoteKeysStatus, len(req.RemoteKeys))
+	for i := 0; i < len(req.RemoteKeys); i++ {
+		statuses[i] = &ethpbservice.ImportedRemoteKeysStatus{
+			Status:  ethpbservice.ImportedRemoteKeysStatus_ERROR,
+			Message: errorMessage,
+		}
+	}
+	return statuses
+}
+
+// DeleteRemoteKeys deletes a list of public keys defined for web3signer keymanager type.
+func (s *Server) DeleteRemoteKeys(ctx context.Context, req *ethpbservice.DeleteRemoteKeysRequest) (*ethpbservice.DeleteRemoteKeysResponse, error) {
+	if !s.walletInitialized {
+		return nil, status.Error(codes.FailedPrecondition, "Prysm Wallet not initialized. Please create a new wallet.")
+	}
+	if s.validatorService == nil {
+		return nil, status.Error(codes.FailedPrecondition, "Validator service not ready.")
+	}
+	km, err := s.validatorService.Keymanager()
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Could not get Prysm keymanager (possibly due to beacon node unavailable): %v", err)
+	}
+	if s.wallet.KeymanagerKind() != keymanager.Web3Signer {
+		return nil, status.Errorf(codes.FailedPrecondition, "Prysm Wallet is not of type Web3Signer. Please execute validator client with web3signer flags.")
+	}
+	deleter, ok := km.(keymanager.PublicKeyDeleter)
+	if !ok {
+		statuses := groupDeleteRemoteKeysErrors(req, "Keymanager kind cannot delete public keys for web3signer keymanager type.")
+		return &ethpbservice.DeleteRemoteKeysResponse{Data: statuses}, nil
+	}
+	remoteKeys := make([][fieldparams.BLSPubkeyLength]byte, len(req.Pubkeys))
+	for i, key := range req.Pubkeys {
+		remoteKeys[i] = bytesutil.ToBytes48(key)
+	}
+	statuses, err := deleter.DeletePublicKeys(ctx, remoteKeys)
+	if err != nil {
+		sts := groupDeleteRemoteKeysErrors(req, fmt.Sprintf("Could not delete keys;error: %v", err))
+		return &ethpbservice.DeleteRemoteKeysResponse{Data: sts}, nil
+	}
+	return &ethpbservice.DeleteRemoteKeysResponse{
+		Data: statuses,
+	}, nil
+}
+
+func groupDeleteRemoteKeysErrors(req *ethpbservice.DeleteRemoteKeysRequest, errorMessage string) []*ethpbservice.DeletedRemoteKeysStatus {
+	statuses := make([]*ethpbservice.DeletedRemoteKeysStatus, len(req.Pubkeys))
+	for i := 0; i < len(req.Pubkeys); i++ {
+		statuses[i] = &ethpbservice.DeletedRemoteKeysStatus{
+			Status:  ethpbservice.DeletedRemoteKeysStatus_ERROR,
+			Message: errorMessage,
+		}
+	}
+	return statuses
+}
+
+func (s *Server) GetGasLimit(_ context.Context, req *ethpbservice.PubkeyRequest) (*ethpbservice.GetGasLimitResponse, error) {
+	if s.validatorService == nil {
+		return nil, status.Error(codes.FailedPrecondition, "Validator service not ready")
+	}
+	validatorKey := req.Pubkey
+	if err := validatePublicKey(validatorKey); err != nil {
+		return nil, status.Error(codes.FailedPrecondition, err.Error())
+	}
+	resp := &ethpbservice.GetGasLimitResponse{
+		Data: &ethpbservice.GetGasLimitResponse_GasLimit{
+			Pubkey: validatorKey,
+		},
+	}
+	if s.validatorService.ProposerSettings != nil {
+		proposerOption, found := s.validatorService.ProposerSettings.ProposeConfig[bytesutil.ToBytes48(validatorKey)]
+		if found {
+			if proposerOption.BuilderConfig != nil {
+				resp.Data.GasLimit = proposerOption.BuilderConfig.GasLimit
+				return resp, nil
+			}
+		} else if s.validatorService.ProposerSettings.DefaultConfig != nil && s.validatorService.ProposerSettings.DefaultConfig.BuilderConfig != nil {
+			resp.Data.GasLimit = s.validatorService.ProposerSettings.DefaultConfig.BuilderConfig.GasLimit
+			return resp, nil
+		}
+	}
+	resp.Data.GasLimit = params.BeaconConfig().DefaultBuilderGasLimit
+	return resp, nil
+}
+
+// SetGasLimit updates GasLimt of the public key.
+func (s *Server) SetGasLimit(ctx context.Context, req *ethpbservice.SetGasLimitRequest) (*empty.Empty, error) {
+	if s.validatorService == nil {
+		return nil, status.Error(codes.FailedPrecondition, "Validator service not ready")
+	}
+	validatorKey := req.Pubkey
+	if err := validatePublicKey(validatorKey); err != nil {
+		return nil, status.Error(codes.FailedPrecondition, err.Error())
+	}
+
+	defaultOption := validatorServiceConfig.DefaultProposerOption()
+	var pBuilderConfig *validatorServiceConfig.BuilderConfig
+	if s.validatorService.ProposerSettings != nil &&
+		s.validatorService.ProposerSettings.DefaultConfig != nil &&
+		s.validatorService.ProposerSettings.DefaultConfig.BuilderConfig != nil {
+		// Make a copy of BuildConfig from DefaultConfig (thus "*" then "&"), so when we change GasLimit, we do not mess up with
+		// "DefaultConfig.BuilderConfig".
+		bo := *s.validatorService.ProposerSettings.DefaultConfig.BuilderConfig
+		pBuilderConfig = &bo
+		pBuilderConfig.GasLimit = req.GasLimit
+	} else {
+		// No default BuildConfig to copy from, just create one and set "GasLimit", but keep "Enabled" to "false".
+		pBuilderConfig = &validatorServiceConfig.BuilderConfig{Enabled: false, GasLimit: req.GasLimit}
+	}
+
+	pOption := validatorServiceConfig.DefaultProposerOption()
+	// "pOption.BuildConfig" is nil from "validatorServiceConfig.DefaultProposerOption()", so set it.
+	pOption.BuilderConfig = pBuilderConfig
+
+	if s.validatorService.ProposerSettings == nil {
+		s.validatorService.ProposerSettings = &validatorServiceConfig.ProposerSettings{
+			ProposeConfig: map[[fieldparams.BLSPubkeyLength]byte]*validatorServiceConfig.ProposerOption{
+				bytesutil.ToBytes48(validatorKey): &pOption,
+			},
+			DefaultConfig: &defaultOption,
+		}
+	} else if s.validatorService.ProposerSettings.ProposeConfig == nil {
+		s.validatorService.ProposerSettings.ProposeConfig = make(map[[fieldparams.BLSPubkeyLength]byte]*validatorServiceConfig.ProposerOption)
+		s.validatorService.ProposerSettings.ProposeConfig[bytesutil.ToBytes48(validatorKey)] = &pOption
+	} else {
+		proposerOption, found := s.validatorService.ProposerSettings.ProposeConfig[bytesutil.ToBytes48(validatorKey)]
+		if found {
+			if proposerOption.BuilderConfig == nil {
+				proposerOption.BuilderConfig = pBuilderConfig
+			} else {
+				proposerOption.BuilderConfig.GasLimit = req.GasLimit
+			}
+		} else {
+			s.validatorService.ProposerSettings.ProposeConfig[bytesutil.ToBytes48(validatorKey)] = &pOption
+		}
+	}
+	// override the 200 success with 202 according to the specs
+	if err := grpc.SetHeader(ctx, metadata.Pairs("x-http-code", "202")); err != nil {
+		return &empty.Empty{}, status.Errorf(codes.Internal, "Could not set custom success code header: %v", err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// ListFeeRecipientByPubkey returns the public key to eth address mapping object to the end user.
+func (s *Server) ListFeeRecipientByPubkey(_ context.Context, req *ethpbservice.PubkeyRequest) (*ethpbservice.GetFeeRecipientByPubkeyResponse, error) {
+	if s.validatorService == nil {
+		return nil, status.Error(codes.FailedPrecondition, "Validator service not ready")
+	}
+	validatorKey := req.Pubkey
+	if err := validatePublicKey(validatorKey); err != nil {
+		return nil, status.Error(codes.FailedPrecondition, err.Error())
+	}
+	defaultFeeRecipient := params.BeaconConfig().DefaultFeeRecipient.Bytes()
+	if s.validatorService.ProposerSettings == nil {
+		return &ethpbservice.GetFeeRecipientByPubkeyResponse{
+			Data: &ethpbservice.GetFeeRecipientByPubkeyResponse_FeeRecipient{
+				Pubkey:     validatorKey,
+				Ethaddress: defaultFeeRecipient,
+			},
+		}, nil
+	}
+	if s.validatorService.ProposerSettings.ProposeConfig != nil {
+		proposerOption, found := s.validatorService.ProposerSettings.ProposeConfig[bytesutil.ToBytes48(validatorKey)]
+		if found {
+			return &ethpbservice.GetFeeRecipientByPubkeyResponse{
+				Data: &ethpbservice.GetFeeRecipientByPubkeyResponse_FeeRecipient{
+					Pubkey:     validatorKey,
+					Ethaddress: proposerOption.FeeRecipient.Bytes(),
+				},
+			}, nil
+		}
+	}
+	if s.validatorService.ProposerSettings.DefaultConfig != nil {
+		defaultFeeRecipient = s.validatorService.ProposerSettings.DefaultConfig.FeeRecipient.Bytes()
+	}
+	return &ethpbservice.GetFeeRecipientByPubkeyResponse{
+		Data: &ethpbservice.GetFeeRecipientByPubkeyResponse_FeeRecipient{
+			Pubkey:     validatorKey,
+			Ethaddress: defaultFeeRecipient,
+		},
+	}, nil
+}
+
+// SetFeeRecipientByPubkey updates the eth address mapped to the public key.
+func (s *Server) SetFeeRecipientByPubkey(ctx context.Context, req *ethpbservice.SetFeeRecipientByPubkeyRequest) (*empty.Empty, error) {
+	if s.validatorService == nil {
+		return nil, status.Error(codes.FailedPrecondition, "Validator service not ready")
+	}
+	validatorKey := req.Pubkey
+	if err := validatePublicKey(validatorKey); err != nil {
+		return nil, status.Error(codes.FailedPrecondition, err.Error())
+	}
+	defaultOption := validatorServiceConfig.DefaultProposerOption()
+	encoded := hexutil.Encode(req.Ethaddress)
+	if !common.IsHexAddress(encoded) {
+		return nil, status.Error(
+			codes.InvalidArgument, "Fee recipient is not a valid Ethereum address")
+	}
+	pOption := validatorServiceConfig.DefaultProposerOption()
+	pOption.FeeRecipient = common.BytesToAddress(req.Ethaddress)
+	switch {
+	case s.validatorService.ProposerSettings == nil:
+		s.validatorService.ProposerSettings = &validatorServiceConfig.ProposerSettings{
+			ProposeConfig: map[[fieldparams.BLSPubkeyLength]byte]*validatorServiceConfig.ProposerOption{
+				bytesutil.ToBytes48(validatorKey): &pOption,
+			},
+			DefaultConfig: &defaultOption,
+		}
+	case s.validatorService.ProposerSettings.ProposeConfig == nil:
+		pOption.BuilderConfig = s.validatorService.ProposerSettings.DefaultConfig.BuilderConfig
+		s.validatorService.ProposerSettings.ProposeConfig = map[[fieldparams.BLSPubkeyLength]byte]*validatorServiceConfig.ProposerOption{
+			bytesutil.ToBytes48(validatorKey): &pOption,
+		}
+	default:
+		proposerOption, found := s.validatorService.ProposerSettings.ProposeConfig[bytesutil.ToBytes48(validatorKey)]
+		if found {
+			proposerOption.FeeRecipient = common.BytesToAddress(req.Ethaddress)
+		} else {
+			pOption.BuilderConfig = s.validatorService.ProposerSettings.DefaultConfig.BuilderConfig
+			s.validatorService.ProposerSettings.ProposeConfig[bytesutil.ToBytes48(validatorKey)] = &pOption
+		}
+	}
+	// override the 200 success with 202 according to the specs
+	if err := grpc.SetHeader(ctx, metadata.Pairs("x-http-code", "202")); err != nil {
+		return &empty.Empty{}, status.Errorf(codes.Internal, "Could not set custom success code header: %v", err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// DeleteFeeRecipientByPubkey updates the eth address mapped to the public key to the default fee recipient listed
+func (s *Server) DeleteFeeRecipientByPubkey(ctx context.Context, req *ethpbservice.PubkeyRequest) (*empty.Empty, error) {
+	if s.validatorService == nil {
+		return nil, status.Error(codes.FailedPrecondition, "Validator service not ready")
+	}
+	validatorKey := req.Pubkey
+	if err := validatePublicKey(validatorKey); err != nil {
+		return nil, status.Error(codes.FailedPrecondition, err.Error())
+	}
+	defaultFeeRecipient := params.BeaconConfig().DefaultFeeRecipient
+	if s.validatorService.ProposerSettings != nil && s.validatorService.ProposerSettings.DefaultConfig != nil {
+		defaultFeeRecipient = s.validatorService.ProposerSettings.DefaultConfig.FeeRecipient
+	}
+	if s.validatorService.ProposerSettings != nil && s.validatorService.ProposerSettings.ProposeConfig != nil {
+		proposerOption, found := s.validatorService.ProposerSettings.ProposeConfig[bytesutil.ToBytes48(validatorKey)]
+		if found {
+			proposerOption.FeeRecipient = defaultFeeRecipient
+		}
+	}
+	// override the 200 success with 204 according to the specs
+	if err := grpc.SetHeader(ctx, metadata.Pairs("x-http-code", "204")); err != nil {
+		return &empty.Empty{}, status.Errorf(codes.Internal, "Could not set custom success code header: %v", err)
+	}
+	return &empty.Empty{}, nil
+}
+
+func validatePublicKey(pubkey []byte) error {
+	if len(pubkey) != fieldparams.BLSPubkeyLength {
+		return status.Errorf(
+			codes.InvalidArgument, "Provided public key in path is not byte length %d and not a valid bls public key", fieldparams.BLSPubkeyLength)
+	}
+	return nil
 }

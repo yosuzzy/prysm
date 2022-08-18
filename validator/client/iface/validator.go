@@ -5,9 +5,12 @@ import (
 	"errors"
 	"time"
 
-	types "github.com/prysmaticlabs/eth2-types"
-	fieldparams "github.com/prysmaticlabs/prysm/config/fieldparams"
-	"github.com/prysmaticlabs/prysm/validator/keymanager"
+	fieldparams "github.com/prysmaticlabs/prysm/v3/config/fieldparams"
+	types "github.com/prysmaticlabs/prysm/v3/consensus-types/primitives"
+	"github.com/prysmaticlabs/prysm/v3/crypto/bls"
+	ethpb "github.com/prysmaticlabs/prysm/v3/proto/prysm/v1alpha1"
+	validatorpb "github.com/prysmaticlabs/prysm/v3/proto/prysm/v1alpha1/validator-client"
+	"github.com/prysmaticlabs/prysm/v3/validator/keymanager"
 )
 
 // ErrConnectionIssue represents a connection problem.
@@ -49,7 +52,7 @@ type Validator interface {
 	SubmitSyncCommitteeMessage(ctx context.Context, slot types.Slot, pubKey [fieldparams.BLSPubkeyLength]byte)
 	SubmitSignedContributionAndProof(ctx context.Context, slot types.Slot, pubKey [fieldparams.BLSPubkeyLength]byte)
 	LogAttestationsSubmitted()
-	LogNextDutyTimeLeft(slot types.Slot) error
+	LogSyncCommitteeMessagesSubmitted()
 	UpdateDomainDataCaches(ctx context.Context, slot types.Slot)
 	WaitForKeymanagerInitialization(ctx context.Context) error
 	AllValidatorsAreExited(ctx context.Context) (bool, error)
@@ -57,5 +60,9 @@ type Validator interface {
 	ReceiveBlocks(ctx context.Context, connectionErrorChannel chan<- error)
 	HandleKeyReload(ctx context.Context, newKeys [][fieldparams.BLSPubkeyLength]byte) (bool, error)
 	CheckDoppelGanger(ctx context.Context) error
-	UpdateFeeRecipient(ctx context.Context, km keymanager.IKeymanager) error
+	PushProposerSettings(ctx context.Context, km keymanager.IKeymanager) error
+	SignValidatorRegistrationRequest(ctx context.Context, signer SigningFunc, newValidatorRegistration *ethpb.ValidatorRegistrationV1) (*ethpb.SignedValidatorRegistrationV1, error)
 }
+
+// SigningFunc interface defines a type for the a function that signs a message
+type SigningFunc func(context.Context, *validatorpb.SignRequest) (bls.Signature, error)

@@ -5,12 +5,12 @@ import (
 	"math/big"
 	"sync"
 
-	"github.com/prysmaticlabs/prysm/encoding/bytesutil"
+	"github.com/prysmaticlabs/prysm/v3/encoding/bytesutil"
 
 	"github.com/pkg/errors"
-	"github.com/prysmaticlabs/prysm/async"
-	"github.com/prysmaticlabs/prysm/crypto/bls"
-	"github.com/prysmaticlabs/prysm/crypto/hash"
+	"github.com/prysmaticlabs/prysm/v3/async"
+	"github.com/prysmaticlabs/prysm/v3/crypto/bls"
+	"github.com/prysmaticlabs/prysm/v3/crypto/hash"
 )
 
 const (
@@ -52,9 +52,9 @@ func deterministicallyGenerateKeys(startIndex, numKeys uint64) ([]bls.SecretKey,
 	for i := startIndex; i < startIndex+numKeys; i++ {
 		enc := make([]byte, 32)
 		binary.LittleEndian.PutUint32(enc, uint32(i))
-		hash := hash.Hash(enc)
+		h := hash.Hash(enc)
 		// Reverse byte order to big endian for use with big ints.
-		b := bytesutil.ReverseByteOrder(hash[:])
+		b := bytesutil.ReverseByteOrder(h[:])
 		num := new(big.Int)
 		num = num.SetBytes(b)
 		order := new(big.Int)

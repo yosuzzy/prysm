@@ -6,19 +6,19 @@ import (
 	"fmt"
 	"time"
 
-	types "github.com/prysmaticlabs/eth2-types"
-	"github.com/prysmaticlabs/prysm/config/params"
-	v1alpha1 "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
-	"github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1/block"
-	"github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1/wrapper"
-	"github.com/prysmaticlabs/prysm/time/slots"
+	"github.com/prysmaticlabs/prysm/v3/config/params"
+	"github.com/prysmaticlabs/prysm/v3/consensus-types/blocks"
+	"github.com/prysmaticlabs/prysm/v3/consensus-types/interfaces"
+	types "github.com/prysmaticlabs/prysm/v3/consensus-types/primitives"
+	v1alpha1 "github.com/prysmaticlabs/prysm/v3/proto/prysm/v1alpha1"
+	"github.com/prysmaticlabs/prysm/v3/time/slots"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 )
 
 var (
 	beacon  = flag.String("beacon", "127.0.0.1:4000", "gRPC address of the Prysm beacon node")
-	genesis = flag.Uint64("genesis", 1606824023, "Genesis time. mainnet=1606824023, prater=1616508000, pyrmont=1605722407")
+	genesis = flag.Uint64("genesis", 1606824023, "Genesis time. mainnet=1606824023, prater=1616508000")
 )
 
 func main() {
@@ -72,15 +72,19 @@ func main() {
 	fmt.Println(v.Report())
 }
 
-func wrapBlock(b *v1alpha1.BeaconBlockContainer) block.BeaconBlock {
-	if bb := b.GetAltairBlock(); bb != nil {
-		wb, err := wrapper.WrappedAltairBeaconBlock(bb.Block)
-		if err != nil {
-			panic(err)
-		}
-		return wb
-	} else if bb := b.GetPhase0Block(); bb != nil {
-		return wrapper.WrappedPhase0BeaconBlock(bb.Block)
+func wrapBlock(b *v1alpha1.BeaconBlockContainer) interfaces.BeaconBlock {
+	var err error
+	var wb interfaces.SignedBeaconBlock
+	switch bb := b.Block.(type) {
+	case *v1alpha1.BeaconBlockContainer_Phase0Block:
+		wb, err = blocks.NewSignedBeaconBlock(bb.Phase0Block)
+	case *v1alpha1.BeaconBlockContainer_AltairBlock:
+		wb, err = blocks.NewSignedBeaconBlock(bb.AltairBlock)
+	case *v1alpha1.BeaconBlockContainer_BellatrixBlock:
+		wb, err = blocks.NewSignedBeaconBlock(bb.BellatrixBlock)
 	}
-	panic("No block")
+	if err != nil {
+		panic("no block")
+	}
+	return wb.Block()
 }

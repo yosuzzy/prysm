@@ -3,11 +3,11 @@ package cache_test
 import (
 	"testing"
 
-	types "github.com/prysmaticlabs/eth2-types"
-	"github.com/prysmaticlabs/prysm/beacon-chain/cache"
-	ethpb "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
-	"github.com/prysmaticlabs/prysm/testing/require"
-	"github.com/prysmaticlabs/prysm/testing/util"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/cache"
+	types "github.com/prysmaticlabs/prysm/v3/consensus-types/primitives"
+	ethpb "github.com/prysmaticlabs/prysm/v3/proto/prysm/v1alpha1"
+	"github.com/prysmaticlabs/prysm/v3/testing/require"
+	"github.com/prysmaticlabs/prysm/v3/testing/util"
 )
 
 func TestSyncCommitteeCache_CanUpdateAndRetrieve(t *testing.T) {
@@ -161,16 +161,16 @@ func TestSyncCommitteeCache_CanUpdateAndRetrieve(t *testing.T) {
 			s, _ := util.DeterministicGenesisStateAltair(t, uint64(numValidators))
 			require.NoError(t, s.SetCurrentSyncCommittee(tt.currentSyncCommittee))
 			require.NoError(t, s.SetNextSyncCommittee(tt.nextSyncCommittee))
-			cache := cache.NewSyncCommittee()
+			c := cache.NewSyncCommittee()
 			r := [32]byte{'a'}
-			require.NoError(t, cache.UpdatePositionsInCommittee(r, s))
+			require.NoError(t, c.UpdatePositionsInCommittee(r, s))
 			for key, indices := range tt.currentSyncMap {
-				pos, err := cache.CurrentPeriodIndexPosition(r, key)
+				pos, err := c.CurrentPeriodIndexPosition(r, key)
 				require.NoError(t, err)
 				require.DeepEqual(t, indices, pos)
 			}
 			for key, indices := range tt.nextSyncMap {
-				pos, err := cache.NextPeriodIndexPosition(r, key)
+				pos, err := c.NextPeriodIndexPosition(r, key)
 				require.NoError(t, err)
 				require.DeepEqual(t, indices, pos)
 			}

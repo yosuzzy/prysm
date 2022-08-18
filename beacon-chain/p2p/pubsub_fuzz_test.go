@@ -1,5 +1,4 @@
-//go:build fuzz && go1.18 && disabled
-// +build fuzz,go1.18,disabled
+//go:build go1.18
 
 package p2p_test
 
@@ -7,8 +6,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/prysmaticlabs/prysm/beacon-chain/p2p"
-	"github.com/prysmaticlabs/prysm/beacon-chain/p2p/encoder"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/p2p"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/p2p/encoder"
 )
 
 func FuzzMsgID(f *testing.F) {
@@ -18,7 +17,7 @@ func FuzzMsgID(f *testing.F) {
 	f.Fuzz(func(t *testing.T, topic string) {
 		_, err := p2p.ExtractGossipDigest(topic)
 		if err != nil {
-			t.Fatal(err)
+			return
 		}
 	})
 }

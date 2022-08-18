@@ -2,24 +2,24 @@ package wallet_test
 
 import (
 	"context"
-	"io/ioutil"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/prysmaticlabs/prysm/config/params"
-	"github.com/prysmaticlabs/prysm/testing/assert"
-	"github.com/prysmaticlabs/prysm/testing/require"
-	"github.com/prysmaticlabs/prysm/validator/accounts/iface"
-	"github.com/prysmaticlabs/prysm/validator/accounts/wallet"
-	remote_web3signer "github.com/prysmaticlabs/prysm/validator/keymanager/remote-web3signer"
+	"github.com/prysmaticlabs/prysm/v3/config/params"
+	"github.com/prysmaticlabs/prysm/v3/testing/assert"
+	"github.com/prysmaticlabs/prysm/v3/testing/require"
+	"github.com/prysmaticlabs/prysm/v3/validator/accounts/iface"
+	"github.com/prysmaticlabs/prysm/v3/validator/accounts/wallet"
+	remoteweb3signer "github.com/prysmaticlabs/prysm/v3/validator/keymanager/remote-web3signer"
 	"github.com/sirupsen/logrus"
 )
 
 func init() {
 	logrus.SetLevel(logrus.DebugLevel)
-	logrus.SetOutput(ioutil.Discard)
+	logrus.SetOutput(io.Discard)
 }
 
 func Test_Exists_RandomFiles(t *testing.T) {
@@ -62,7 +62,7 @@ func TestWallet_InitializeKeymanager_web3Signer_HappyPath(t *testing.T) {
 	require.NoError(t, err)
 	config := iface.InitKeymanagerConfig{
 		ListenForChanges: false,
-		Web3SignerConfig: &remote_web3signer.SetupConfig{
+		Web3SignerConfig: &remoteweb3signer.SetupConfig{
 			BaseEndpoint:          "http://localhost:8545",
 			GenesisValidatorsRoot: root,
 			PublicKeysURL:         "http://localhost:8545/public_keys",

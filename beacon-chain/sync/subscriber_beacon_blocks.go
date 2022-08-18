@@ -3,22 +3,20 @@ package sync
 import (
 	"context"
 
-	"github.com/pkg/errors"
-	"github.com/prysmaticlabs/prysm/beacon-chain/core/helpers"
-	"github.com/prysmaticlabs/prysm/beacon-chain/core/transition/interop"
-	"github.com/prysmaticlabs/prysm/beacon-chain/powchain"
-	"github.com/prysmaticlabs/prysm/config/features"
-	ethpb "github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1"
-	"github.com/prysmaticlabs/prysm/proto/prysm/v1alpha1/wrapper"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/blockchain"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/core/helpers"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/core/transition/interop"
+	"github.com/prysmaticlabs/prysm/v3/consensus-types/blocks"
+	ethpb "github.com/prysmaticlabs/prysm/v3/proto/prysm/v1alpha1"
 	"google.golang.org/protobuf/proto"
 )
 
 func (s *Service) beaconBlockSubscriber(ctx context.Context, msg proto.Message) error {
-	signed, err := wrapper.WrappedSignedBeaconBlock(msg)
+	signed, err := blocks.NewSignedBeaconBlock(msg)
 	if err != nil {
 		return err
 	}
-	if err := helpers.BeaconBlockIsNil(signed); err != nil {
+	if err := blocks.BeaconBlockIsNil(signed); err != nil {
 		return err
 	}
 
@@ -32,19 +30,20 @@ func (s *Service) beaconBlockSubscriber(ctx context.Context, msg proto.Message) 
 	}
 
 	if err := s.cfg.chain.ReceiveBlock(ctx, signed, root); err != nil {
-		if !errors.Is(err, powchain.ErrHTTPTimeout) {
-			interop.WriteBlockToDisk(signed, true /*failed*/)
+		if blockchain.IsInvalidBlock(err) {
+			r := blockchain.InvalidBlockRoot(err)
+			if r != [32]byte{} {
+				s.setBadBlock(ctx, r) // Setting head block as bad.
+			} else {
+				interop.WriteBlockToDisk(signed, true /*failed*/)
+				s.setBadBlock(ctx, root)
+			}
+		}
+		// Set the returned invalid ancestors as bad.
+		for _, root := range blockchain.InvalidAncestorRoots(err) {
 			s.setBadBlock(ctx, root)
 		}
 		return err
-	}
-
-	if !features.Get().CorrectlyPruneCanonicalAtts {
-		// Delete attestations from the block in the pool to avoid inclusion in future block.
-		if err := s.deleteAttsInPool(block.Body().Attestations()); err != nil {
-			log.Debugf("Could not delete attestations in pool: %v", err)
-			return nil
-		}
 	}
 	return err
 }
