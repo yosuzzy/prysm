@@ -725,7 +725,7 @@ func (vs *Server) SubmitBeaconCommitteeSubscription(ctx context.Context, req *et
 
 	fetchValsLen := func(slot types.Slot) (uint64, error) {
 		wantedEpoch := slots.ToEpoch(slot)
-		vals, err := vs.HeadFetcher.HeadValidatorsIndices(ctx, wantedEpoch)
+		vals, err := vs.HeadFetcher.HeadValidatorsIndicesFromAdvancedSlots(ctx, wantedEpoch)
 		if err != nil {
 			return 0, err
 		}
