@@ -40,7 +40,8 @@ func (n *Node) applyWeightChanges(ctx context.Context) error {
 	return nil
 }
 
-// updateBestDescendant updates the best descendant of this node and its children.
+// updateBestDescendant updates the best descendant of this node and its
+// children. This function assumes the caller has a lock on Store.nodesLock
 func (n *Node) updateBestDescendant(ctx context.Context, justifiedEpoch, finalizedEpoch types.Epoch) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
@@ -115,10 +116,13 @@ func (n *Node) setNodeAndParentValidated(ctx context.Context) error {
 		return ctx.Err()
 	}
 
-	if !n.optimistic || n.parent == nil {
+	if !n.optimistic {
 		return nil
 	}
-
 	n.optimistic = false
+
+	if n.parent == nil {
+		return nil
+	}
 	return n.parent.setNodeAndParentValidated(ctx)
 }
