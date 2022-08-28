@@ -609,7 +609,6 @@ func (s *Service) run(done <-chan struct{}) {
 				continue
 			}
 			if eth1HeadIsBehind(head.Time) {
-				s.pollConnectionStatus(s.ctx)
 				log.WithError(errFarBehind).Debug("Could not get an up to date eth1 header")
 				continue
 			}
