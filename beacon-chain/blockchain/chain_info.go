@@ -197,7 +197,7 @@ func (s *Service) HeadValidatorsIndices(ctx context.Context, epoch types.Epoch) 
 	if !s.hasHeadState() {
 		return []types.ValidatorIndex{}, nil
 	}
-	return helpers.ActiveValidatorIndices(ctx, st, epoch)
+	return helpers.ActiveValidatorIndices(ctx, s.headState(ctx), epoch)
 }
 
 // HeadValidatorsIndicesFromAdvancedSlots returns a list of active validator indices from the head view of a given epoch.
