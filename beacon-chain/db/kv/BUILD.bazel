@@ -91,6 +91,7 @@ go_test(
         "init_test.go",
         "kv_test.go",
         "migration_archived_index_test.go",
+        "migration_blinded_beacon_blocks_test.go",
         "migration_block_slot_index_test.go",
         "migration_state_validators_test.go",
         "state_summary_test.go",
