@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/core/blocks"
 	"github.com/prysmaticlabs/prysm/v3/config/features"
 	"github.com/prysmaticlabs/prysm/v3/monitoring/progress"
 	bolt "go.etcd.io/bbolt"
@@ -42,6 +43,9 @@ func migrateBlindedBeaconBlocksEnabled(ctx context.Context, db *bolt.DB) error {
 			decoded, err := unmarshalBlock(ctx, v)
 			if err != nil {
 				return err
+			}
+			if blocks.IsPreBellatrixVersion(decoded.Version()) {
+				return nil
 			}
 			blindedFormat, err := decoded.ToBlinded()
 			if err != nil {
