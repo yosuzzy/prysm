@@ -28,7 +28,11 @@ import (
 )
 
 var (
-	ErrOptimisticParent = errors.New("parent of the block is optimistic")
+	ErrOptimisticParent  = errors.New("parent of the block is optimistic")
+	normalBlockCollected = 0
+	mevBlockCollected    = 0
+	blockDuration        = 0
+	mevBlockDuration     = 0
 )
 
 // validateBeaconBlockPubSub checks that the incoming block has a valid BLS signature.
@@ -128,9 +132,30 @@ func (s *Service) validateBeaconBlockPubSub(ctx context.Context, pid peer.ID, ms
 	}
 
 	// Add metrics for block arrival time subtracts slot start time.
-	if err := captureArrivalTimeMetric(genesisTime, blk.Block().Slot()); err != nil {
-		log.WithError(err).WithFields(getBlockFields(blk)).Debug("Ignored block: could not capture arrival time metric")
-		return pubsub.ValidationIgnore, nil
+
+	e, err := blk.Block().Body().Execution()
+	if err != nil {
+		log.Error(err)
+	}
+	log.Infof("Extra data: %s", string(e.ExtraData()))
+	want := []string{"Illuminate Dmocratize Dstribute", "Powered by bloXroute"}
+	usedBuilder := false
+	for _, s2 := range want {
+		if string(e.ExtraData()) == s2 {
+			usedBuilder = true
+			break
+		}
+	}
+	if usedBuilder {
+		if err := captureMevBoostArrivalTimeMetric(genesisTime, blk.Block().Slot()); err != nil {
+			log.WithError(err).WithFields(getBlockFields(blk)).Debug("Ignored block: could not capture arrival time metric")
+			return pubsub.ValidationIgnore, nil
+		}
+	} else {
+		if err := captureArrivalTimeMetric(genesisTime, blk.Block().Slot()); err != nil {
+			log.WithError(err).WithFields(getBlockFields(blk)).Debug("Ignored block: could not capture arrival time metric")
+			return pubsub.ValidationIgnore, nil
+		}
 	}
 
 	cp := s.cfg.chain.FinalizedCheckpt()
@@ -350,9 +375,32 @@ func captureArrivalTimeMetric(genesisTime uint64, currentSlot types.Slot) error 
 	if err != nil {
 		return err
 	}
-	ms := prysmTime.Now().Sub(startTime) / time.Millisecond
+	ms := prysmTime.Now().Sub(startTime)
 	arrivalBlockPropagationHistogram.Observe(float64(ms))
+	normalBlockCollected++
+	blockDuration += int(ms.Milliseconds())
+	log.WithFields(logrus.Fields{
+		"elapsed":    ms.String(),
+		"count":      normalBlockCollected,
+		"avgElapsed": blockDuration / normalBlockCollected,
+	}).Info("Normal block arrival")
+	return nil
+}
 
+func captureMevBoostArrivalTimeMetric(genesisTime uint64, currentSlot types.Slot) error {
+	startTime, err := slots.ToTime(genesisTime, currentSlot)
+	if err != nil {
+		return err
+	}
+	ms := prysmTime.Now().Sub(startTime)
+	arrivalMevBoostBlockPropagationHistogram.Observe(float64(ms))
+	mevBlockCollected++
+	mevBlockDuration += int(ms.Milliseconds())
+	log.WithFields(logrus.Fields{
+		"elapsed":    ms.String(),
+		"count":      mevBlockCollected,
+		"avgElapsed": mevBlockDuration / mevBlockCollected,
+	}).Info("Normal block arrival")
 	return nil
 }
 
