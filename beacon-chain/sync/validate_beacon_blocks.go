@@ -138,7 +138,7 @@ func (s *Service) validateBeaconBlockPubSub(ctx context.Context, pid peer.ID, ms
 		log.Error(err)
 	}
 	log.Infof("Extra data: %s", string(e.ExtraData()))
-	want := []string{"Illuminate Dmocratize Dstribute", "Powered by bloXroute"}
+	want := []string{"Illuminate Dmocratize Dstribute", "Powered by bloXroute", "@builder0x69"}
 	usedBuilder := false
 	for _, s2 := range want {
 		if string(e.ExtraData()) == s2 {
@@ -400,7 +400,7 @@ func captureMevBoostArrivalTimeMetric(genesisTime uint64, currentSlot types.Slot
 		"elapsed":    ms.String(),
 		"count":      mevBlockCollected,
 		"avgElapsed": mevBlockDuration / mevBlockCollected,
-	}).Info("Normal block arrival")
+	}).Info("MEV block arrival")
 	return nil
 }
 
