@@ -3,6 +3,7 @@ package sync
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -139,10 +140,10 @@ func (s *Service) validateBeaconBlockPubSub(ctx context.Context, pid peer.ID, ms
 	}
 	log.Infof("Extra data: %s", string(e.ExtraData()))
 	log.Infof("Fee recipient: %s", fmt.Sprintf("%#x", e.FeeRecipient()))
-	want := []string{"Illuminate Dmocratize Dstribute", "Powered by bloXroute", "Ø\u0083\u0001 \u0017\u0084geth\u0088go1.18.2\u0085linux"}
+	want := []string{"Illuminate Dmocratize Dstribute", "Powered by bloXroute"}
 	usedBuilder := false
 	for _, s2 := range want {
-		if string(e.ExtraData()) == s2 {
+		if string(e.ExtraData()) == s2 || strings.Contains(string(e.ExtraData()), "geth") || strings.Contains(string(e.ExtraData()), "Ø") {
 			usedBuilder = true
 			break
 		}
