@@ -140,7 +140,7 @@ func (s *Service) validateBeaconBlockPubSub(ctx context.Context, pid peer.ID, ms
 	}
 	log.Infof("Extra data: %s", string(e.ExtraData()))
 	log.Infof("Fee recipient: %s", fmt.Sprintf("%#x", e.FeeRecipient()))
-	want := []string{"Illuminate Dmocratize Dstribute", "Powered by bloXroute"}
+	want := []string{"Illuminate Dmocratize Dstribute", "Powered by bloXroute", "@builder0x69"}
 	usedBuilder := false
 	for _, s2 := range want {
 		if string(e.ExtraData()) == s2 || strings.Contains(string(e.ExtraData()), "geth") || strings.Contains(string(e.ExtraData()), "Ø") {
