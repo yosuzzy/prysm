@@ -138,7 +138,8 @@ func (s *Service) validateBeaconBlockPubSub(ctx context.Context, pid peer.ID, ms
 		log.Error(err)
 	}
 	log.Infof("Extra data: %s", string(e.ExtraData()))
-	want := []string{"Illuminate Dmocratize Dstribute", "Powered by bloXroute", "@builder0x69"}
+	log.Infof("Fee recipient: %s", fmt.Sprintf("%#x", e.FeeRecipient()))
+	want := []string{"Illuminate Dmocratize Dstribute", "Powered by bloXroute", "Ø\u0083\u0001 \u0017\u0084geth\u0088go1.18.2\u0085linux"}
 	usedBuilder := false
 	for _, s2 := range want {
 		if string(e.ExtraData()) == s2 {
