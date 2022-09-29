@@ -1,4 +1,4 @@
-package trie
+package depositsnapshot
 
 import (
 	"github.com/prysmaticlabs/prysm/crypto/hash"
@@ -15,28 +15,50 @@ type MerkleTree interface {
 	IsFull() bool
 	Finalize(deposits uint, depth uint) MerkleTree
 	GetFinalized(result [][32]byte) ([][32]byte, uint)
-	PushLeaf(leaf [32]byte, depth uint) MerkleTree
+	PushLeaf(leaf [32]byte, deposits uint, depth uint) MerkleTree
 }
 
-func createMerkleTree(leaves [][32]byte, depth uint) (node MerkleTree) {
+func CreateMerkleTreeIter(leaves [][32]byte, deposits uint, depth uint) MerkleTree {
 	switch {
-	case len(leaves) == 0:
-		node = &Zero{depth: depth}
+	case deposits == 0, len(leaves) == 0:
+		return &Zero{depth: depth}
 	case depth == 0:
-		node = &Leaf{
+		return &Leaf{
 			hash: leaves[0],
 		}
 	default:
-		split := UintPow(2, depth-1)
-		if split > uint(len(leaves)) {
-			split = uint(len(leaves))
+		node := &Node{
+			left:  nil,
+			right: nil,
 		}
-		node = &Node{
-			left:  createMerkleTree(leaves[:split], depth-1),
-			right: createMerkleTree(leaves[split:], depth-1),
+		var split uint
+		for depth > 0 {
+			split = UintPow(2, depth-1)
+			if deposits < split {
+				next := &Node{}
+				node.left = &Node{left: next, right: &Node{}}
+				node.right = &Zero{depth: depth - 1}
+				node = next // = node.left
+				depth -= 1
+			} else if deposits > split {
+				node.left = &Finalized{
+					deposits: deposits,
+					hash:     leaves[0],
+				}
+				next := &Node{}
+				node.right = &Node{left: &Node{}, right: next}
+				leaves = leaves[1:]
+				deposits -= split
+				node = next // = node.right
+				depth -= 1
+			} else {
+				node.left = &Finalized{split, leaves[0]}
+				node.right = &Zero{depth: depth - 1}
+				leaves = leaves[1:]
+			}
 		}
+		return node
 	}
-	return
 }
 
 type Finalized struct {
@@ -60,8 +82,8 @@ func (f *Finalized) GetFinalized(result [][32]byte) ([][32]byte, uint) {
 	return append(result, f.hash), f.deposits
 }
 
-func (f *Finalized) PushLeaf(leaf [32]byte, depth uint) MerkleTree {
-	panic("Can't push a lead to something finalized")
+func (f *Finalized) PushLeaf(leaf [32]byte, deposits uint, depth uint) MerkleTree {
+	panic("Can't push a leaf to something finalized")
 }
 
 type Leaf struct {
@@ -87,7 +109,7 @@ func (l *Leaf) GetFinalized(result [][32]byte) ([][32]byte, uint) {
 	return result, 0
 }
 
-func (l *Leaf) PushLeaf(leaf [32]byte, depth uint) MerkleTree {
+func (l *Leaf) PushLeaf(leaf [32]byte, deposits uint, depth uint) MerkleTree {
 	panic("leaf should not be able to push another leaf")
 }
 
@@ -128,11 +150,11 @@ func (n *Node) GetFinalized(result [][32]byte) ([][32]byte, uint) {
 	return result, depositsLeft + depositsRight
 }
 
-func (n *Node) PushLeaf(leaf [32]byte, depth uint) MerkleTree {
+func (n *Node) PushLeaf(leaf [32]byte, deposits uint, depth uint) MerkleTree {
 	if !n.left.IsFull() {
-		n.left = n.left.PushLeaf(leaf, depth-1)
+		n.left = n.left.PushLeaf(leaf, deposits, depth-1)
 	} else {
-		n.right = n.right.PushLeaf(leaf, depth-1)
+		n.right = n.right.PushLeaf(leaf, deposits, depth-1)
 	}
 	return n
 }
@@ -160,8 +182,8 @@ func (z *Zero) GetFinalized(result [][32]byte) ([][32]byte, uint) {
 	return result, 0
 }
 
-func (z *Zero) PushLeaf(leaf [32]byte, depth uint) MerkleTree {
-	return createMerkleTree([][32]byte{leaf}, depth)
+func (z *Zero) PushLeaf(leaf [32]byte, deposits uint, depth uint) MerkleTree {
+	return CreateMerkleTreeIter([][32]byte{leaf}, deposits, depth)
 }
 
 type DepositTree struct {
@@ -202,9 +224,9 @@ func fromSnapshotParts(finalized [][32]byte, deposits uint, depth uint) MerkleTr
 	return &node
 }
 
-func (d *DepositTree) PushLeaf(leaf [32]byte) {
+func (d *DepositTree) PushLeaf(leaf [32]byte, deposits uint) {
 	d.mixInLength += 1
-	d.tree = d.tree.PushLeaf(leaf, DepositContractDepth)
+	d.tree = d.tree.PushLeaf(leaf, deposits, DepositContractDepth)
 }
 
 func UintPow(n, m uint) uint {
