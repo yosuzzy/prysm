@@ -21,6 +21,7 @@ import (
 	types "github.com/prysmaticlabs/prysm/v3/consensus-types/primitives"
 	"github.com/prysmaticlabs/prysm/v3/encoding/bytesutil"
 	ethpb "github.com/prysmaticlabs/prysm/v3/proto/prysm/v1alpha1"
+	prysmTime "github.com/prysmaticlabs/prysm/v3/time"
 	"github.com/prysmaticlabs/prysm/v3/time/slots"
 	"github.com/sirupsen/logrus"
 	"go.opencensus.io/trace"
@@ -30,6 +31,13 @@ import (
 
 // eth1DataNotification is a latch to stop flooding logs with the same warning.
 var eth1DataNotification bool
+
+var (
+	normalBlockCollected = 0
+	mevBlockCollected    = 0
+	blockDuration        = 0
+	mevBlockDuration     = 0
+)
 
 const eth1dataTimeout = 2 * time.Second
 
@@ -140,6 +148,30 @@ func (vs *Server) proposeGenericBeaconBlock(ctx context.Context, blk interfaces.
 			Data: &blockfeed.ReceivedBlockData{SignedBlock: blk},
 		})
 	}()
+
+	startTime, err := slots.ToTime(uint64(vs.TimeFetcher.GenesisTime().Unix()), blk.Block().Slot())
+	if err != nil {
+		return nil, err
+	}
+
+	ms := prysmTime.Now().Sub(startTime)
+	if blk.Block().ProposerIndex()%2 == 0 {
+		normalBlockCollected++
+		blockDuration += int(ms.Milliseconds())
+		log.WithFields(logrus.Fields{
+			"elapsed":    ms.String(),
+			"count":      mevBlockCollected,
+			"avgElapsed": mevBlockDuration / mevBlockCollected,
+		}).Info("MEV block proposed")
+	} else {
+		mevBlockCollected++
+		mevBlockDuration += int(ms.Milliseconds())
+		log.WithFields(logrus.Fields{
+			"elapsed":    ms.String(),
+			"count":      normalBlockCollected,
+			"avgElapsed": blockDuration / normalBlockCollected,
+		}).Info("Normal block proposed")
+	}
 
 	// Broadcast the new block to the network.
 	blkPb, err := blk.Proto()

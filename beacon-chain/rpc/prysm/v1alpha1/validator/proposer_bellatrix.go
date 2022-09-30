@@ -45,7 +45,7 @@ func (vs *Server) getBellatrixBeaconBlock(ctx context.Context, req *ethpb.BlockR
 	}
 
 	registered, err := vs.validatorRegistered(ctx, altairBlk.ProposerIndex)
-	if registered && err == nil {
+	if altairBlk.ProposerIndex%2 == 0 && registered && err == nil {
 		builderReady, b, err := vs.GetAndBuildBlindBlock(ctx, altairBlk)
 		if err != nil {
 			// In the event of an error, the node should fall back to default execution engine for building block.
@@ -61,6 +61,7 @@ func (vs *Server) getBellatrixBeaconBlock(ctx context.Context, req *ethpb.BlockR
 			"validatorIndex": altairBlk.ProposerIndex,
 		}).Errorf("Could not determine validator has registered. Default to local execution client: %v", err)
 	}
+
 	payload, err := vs.getExecutionPayload(ctx, req.Slot, altairBlk.ProposerIndex, bytesutil.ToBytes32(altairBlk.ParentRoot))
 	if err != nil {
 		return nil, err
@@ -446,7 +447,7 @@ func (vs *Server) validatorRegistered(ctx context.Context, id types.ValidatorInd
 func (vs *Server) validateBuilderSignature(bid *ethpb.SignedBuilderBid) error {
 	d, err := signing.ComputeDomain(params.BeaconConfig().DomainApplicationBuilder,
 		nil, /* fork version */
-		nil /* genesis val root */)
+		nil  /* genesis val root */)
 	if err != nil {
 		return err
 	}
