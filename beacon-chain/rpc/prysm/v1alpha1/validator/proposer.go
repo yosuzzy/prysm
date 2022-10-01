@@ -156,16 +156,16 @@ func (vs *Server) proposeGenericBeaconBlock(ctx context.Context, blk interfaces.
 
 	ms := prysmTime.Now().Sub(startTime)
 	if blk.Block().ProposerIndex()%2 == 0 {
-		normalBlockCollected++
-		blockDuration += int(ms.Milliseconds())
+		mevBlockCollected++
+		mevBlockDuration += int(ms.Milliseconds())
 		log.WithFields(logrus.Fields{
 			"elapsed":    ms.String(),
 			"count":      mevBlockCollected,
 			"avgElapsed": mevBlockDuration / mevBlockCollected,
 		}).Info("MEV block proposed")
 	} else {
-		mevBlockCollected++
-		mevBlockDuration += int(ms.Milliseconds())
+		normalBlockCollected++
+		blockDuration += int(ms.Milliseconds())
 		log.WithFields(logrus.Fields{
 			"elapsed":    ms.String(),
 			"count":      normalBlockCollected,
