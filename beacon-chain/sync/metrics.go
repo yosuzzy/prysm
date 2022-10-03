@@ -89,6 +89,20 @@ var (
 			Buckets: []float64{100, 250, 500, 750, 1000, 1500, 2000, 4000, 8000, 12000},
 		},
 	)
+	arrivalAttPropagationHistogram = promauto.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    "attestation_arrival_latency_milliseconds",
+			Help:    "Captures attestation propagation time in milliseconds distribution",
+			Buckets: []float64{50, 100, 200, 300, 500, 700, 1000, 2000},
+		},
+	)
+	arrivalAggregatedAttPropagationHistogram = promauto.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    "aggregatedAttestation_arrival_latency_milliseconds",
+			Help:    "Captures aggregated attestation propagation time in milliseconds distribution",
+			Buckets: []float64{50, 100, 200, 300, 500, 700, 1000, 2000},
+		},
+	)
 
 	// Attestation processing granular error tracking.
 	attBadBlockCount = promauto.NewCounter(prometheus.CounterOpts{

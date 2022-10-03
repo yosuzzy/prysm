@@ -186,6 +186,9 @@ func NewKVStore(ctx context.Context, dirPath string) (*Store, error) {
 
 			feeRecipientBucket,
 			registrationBucket,
+
+			// Monitoring
+			attArrivalLatencyBucket,
 		)
 	}); err != nil {
 		return nil, err

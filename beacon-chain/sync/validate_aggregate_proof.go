@@ -3,6 +3,7 @@ package sync
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/libp2p/go-libp2p-core/peer"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
@@ -54,6 +55,22 @@ func (s *Service) validateAggregateAndProof(ctx context.Context, pid peer.ID, ms
 	if m.Message == nil {
 		return pubsub.ValidationReject, errNilMessage
 	}
+
+	startTime, err := slots.ToTime(uint64(s.cfg.chain.GenesisTime().Unix()), s.cfg.chain.CurrentSlot())
+	if err != nil {
+		return pubsub.ValidationReject, errWrongMessage
+	}
+	startTime = startTime.Add(time.Second * 8)
+	latency := float64(time.Now().Sub(startTime))
+	arrivalAggregatedAttPropagationHistogram.Observe(latency)
+
+	s.insertAttLatency(m.Message.Aggregate.Data.Slot, &ethpb.LatencyAttestations_LatencyAttestation{
+		CommitteeIndex: m.Message.Aggregate.Data.CommitteeIndex,
+		ValidatorIndex: m.Message.AggregatorIndex,
+		Aggregated:     true,
+		Latency:        uint64(time.Now().Sub(startTime)),
+	})
+
 	if err := helpers.ValidateNilAttestation(m.Message.Aggregate); err != nil {
 		return pubsub.ValidationReject, err
 	}

@@ -129,7 +129,7 @@ func (s *Service) processAttestations(ctx context.Context, attestations []*ethpb
 				continue
 			}
 
-			valid, err := s.validateUnaggregatedAttWithState(ctx, att.Aggregate, preState)
+			valid, err := s.validateUnaggregatedAttWithState(ctx, att.Aggregate, preState, 0)
 			if err != nil {
 				log.WithError(err).Debug("Pending unaggregated attestation failed validation")
 				continue

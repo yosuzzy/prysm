@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/libp2p/go-libp2p-core/peer"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
@@ -58,6 +59,14 @@ func (s *Service) validateCommitteeIndexBeaconAttestation(ctx context.Context, p
 	if !ok {
 		return pubsub.ValidationReject, errWrongMessage
 	}
+
+	startTime, err := slots.ToTime(uint64(s.cfg.chain.GenesisTime().Unix()), s.cfg.chain.CurrentSlot())
+	if err != nil {
+		return pubsub.ValidationReject, errWrongMessage
+	}
+	startTime = startTime.Add(time.Second * 4)
+	latency := float64(time.Now().Sub(startTime))
+	arrivalAttPropagationHistogram.Observe(latency)
 
 	if err := helpers.ValidateNilAttestation(att); err != nil {
 		return pubsub.ValidationReject, err
@@ -157,7 +166,7 @@ func (s *Service) validateCommitteeIndexBeaconAttestation(ctx context.Context, p
 		return validationRes, err
 	}
 
-	validationRes, err = s.validateUnaggregatedAttWithState(ctx, att, preState)
+	validationRes, err = s.validateUnaggregatedAttWithState(ctx, att, preState, uint64(latency))
 	if validationRes != pubsub.ValidationAccept {
 		return validationRes, err
 	}
@@ -199,7 +208,7 @@ func (s *Service) validateUnaggregatedAttTopic(ctx context.Context, a *eth.Attes
 
 // This validates beacon unaggregated attestation using the given state, the validation consists of bitfield length and count consistency
 // and signature verification.
-func (s *Service) validateUnaggregatedAttWithState(ctx context.Context, a *eth.Attestation, bs state.ReadOnlyBeaconState) (pubsub.ValidationResult, error) {
+func (s *Service) validateUnaggregatedAttWithState(ctx context.Context, a *eth.Attestation, bs state.ReadOnlyBeaconState, latency uint64) (pubsub.ValidationResult, error) {
 	ctx, span := trace.StartSpan(ctx, "sync.validateUnaggregatedAttWithState")
 	defer span.End()
 
@@ -219,6 +228,21 @@ func (s *Service) validateUnaggregatedAttWithState(ctx context.Context, a *eth.A
 	// however this validation can be achieved without use of get_attesting_indices which is an O(n) lookup.
 	if a.AggregationBits.Count() != 1 || a.AggregationBits.BitIndices()[0] >= len(committee) {
 		return pubsub.ValidationReject, errors.New("attestation bitfield is invalid")
+	}
+
+	if latency != 0 {
+		indices, err := attestation.AttestingIndices(a.AggregationBits, committee)
+		if err != nil {
+			tracing.AnnotateError(span, err)
+			log.WithError(err).Error("Could not get attesting indices")
+			return pubsub.ValidationReject, err
+		}
+		s.insertAttLatency(a.Data.Slot, &eth.LatencyAttestations_LatencyAttestation{
+			CommitteeIndex: a.Data.CommitteeIndex,
+			ValidatorIndex: types.ValidatorIndex(indices[0]),
+			Aggregated:     false,
+			Latency:        latency,
+		})
 	}
 
 	set, err := blocks.AttestationSignatureBatch(ctx, bs, []*eth.Attestation{a})
@@ -255,4 +279,18 @@ func (s *Service) hasBlockAndState(ctx context.Context, blockRoot [32]byte) bool
 	hasStateSummary := s.cfg.beaconDB.HasStateSummary(ctx, blockRoot)
 	hasState := hasStateSummary || s.cfg.beaconDB.HasState(ctx, blockRoot)
 	return hasState && s.cfg.chain.HasBlock(ctx, blockRoot)
+}
+
+func (s *Service) insertAttLatency(slot types.Slot, a *eth.LatencyAttestations_LatencyAttestation) {
+	s.slotToAttLatenciesLock.Lock()
+	defer s.slotToAttLatenciesLock.RUnlock()
+
+	atts, ok := s.slotToAttLatencies[slot]
+	if !ok {
+		s.slotToAttLatencies[slot] = &eth.LatencyAttestations{
+			Messages: []*eth.LatencyAttestations_LatencyAttestation{a},
+		}
+		return
+	}
+	atts.Messages = append(atts.Messages, a)
 }

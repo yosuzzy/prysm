@@ -84,3 +84,13 @@ message Checkpoint {
     // Block root of the checkpoint references.
     bytes root = 2 [(ethereum.eth.ext.ssz_size) = "32"];
 }
+
+message LatencyAttestations {
+    repeated LatencyAttestation messages = 1;
+    message LatencyAttestation {
+    uint64 committee_index = 1  [(ethereum.eth.ext.cast_type) = "github.com/prysmaticlabs/prysm/v3/consensus-types/primitives.CommitteeIndex"];
+    uint64 validator_index = 2 [(ethereum.eth.ext.cast_type) = "github.com/prysmaticlabs/prysm/v3/consensus-types/primitives.ValidatorIndex"];
+    bool aggregated = 3;
+    uint64 latency = 4;
+    }
+}

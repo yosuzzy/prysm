@@ -90,6 +90,8 @@ type NoHeadAccessDatabase interface {
 	SaveRegistrationsByValidatorIDs(ctx context.Context, ids []types.ValidatorIndex, regs []*ethpb.ValidatorRegistrationV1) error
 
 	CleanUpDirtyStates(ctx context.Context, slotsPerArchivedPoint types.Slot) error
+
+	SaveAttestationsLatency(ctx context.Context, slot types.Slot, atts *ethpb.LatencyAttestations) error
 }
 
 // HeadAccessDatabase defines a struct with access to reading chain head data.

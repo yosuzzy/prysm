@@ -560,6 +560,44 @@ func (s *Store) SaveRegistrationsByValidatorIDs(ctx context.Context, ids []types
 	})
 }
 
+func (s *Store) SaveAttestationsLatency(ctx context.Context, slot types.Slot, atts *ethpb.LatencyAttestations) error {
+	return s.db.Update(func(tx *bolt.Tx) error {
+		bkt := tx.Bucket(attArrivalLatencyBucket)
+		enc := bkt.Get(bytesutil.Uint64ToBytesBigEndian(uint64(slot)))
+		if enc != nil {
+			existed := &ethpb.LatencyAttestations{}
+			err := decode(ctx, enc, existed)
+			if err != nil {
+				return err
+			}
+			atts.Messages = append(atts.Messages, existed.Messages...)
+		}
+
+		enc, err := encode(ctx, atts)
+		if err != nil {
+			return err
+		}
+		if err := bkt.Put(bytesutil.Uint64ToBytesBigEndian(uint64(slot)), enc); err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
+func (s *Store) AttestationsLatency(ctx context.Context, slot types.Slot) (*ethpb.LatencyAttestations, error) {
+	atts := &ethpb.LatencyAttestations{}
+	err := s.db.View(func(tx *bolt.Tx) error {
+		bkt := tx.Bucket(attArrivalLatencyBucket)
+		enc := bkt.Get(bytesutil.Uint64ToBytesBigEndian(uint64(slot)))
+		if enc == nil {
+			return nil
+		}
+		return decode(ctx, enc, atts)
+	})
+
+	return atts, err
+}
+
 // blockRootsByFilter retrieves the block roots given the filter criteria.
 func blockRootsByFilter(ctx context.Context, tx *bolt.Tx, f *filters.QueryFilter) ([][]byte, error) {
 	ctx, span := trace.StartSpan(ctx, "BeaconDB.blockRootsByFilter")

@@ -33,6 +33,7 @@ import (
 	"github.com/prysmaticlabs/prysm/v3/beacon-chain/state/stategen"
 	lruwrpr "github.com/prysmaticlabs/prysm/v3/cache/lru"
 	"github.com/prysmaticlabs/prysm/v3/config/params"
+	types "github.com/prysmaticlabs/prysm/v3/consensus-types/primitives"
 	ethpb "github.com/prysmaticlabs/prysm/v3/proto/prysm/v1alpha1"
 	"github.com/prysmaticlabs/prysm/v3/runtime"
 	prysmTime "github.com/prysmaticlabs/prysm/v3/time"
@@ -136,6 +137,8 @@ type Service struct {
 	syncContributionBitsOverlapLock  sync.RWMutex
 	syncContributionBitsOverlapCache *lru.Cache
 	signatureChan                    chan *signatureVerifier
+	slotToAttLatencies               map[types.Slot]*ethpb.LatencyAttestations
+	slotToAttLatenciesLock           sync.RWMutex
 }
 
 // NewService initializes new regular sync service.
@@ -179,6 +182,8 @@ func (s *Service) Start() {
 	s.processPendingAttsQueue()
 	s.maintainPeerStatuses()
 	s.resyncIfBehind()
+
+	go s.batchSaveAttsWithLatencies(s.ctx)
 
 	// Update sync metrics.
 	async.RunEvery(s.ctx, syncMetricsInterval, s.updateMetrics)
@@ -297,4 +302,25 @@ type Checker interface {
 	Synced() bool
 	Status() error
 	Resync() error
+}
+
+func (s *Service) batchSaveAttsWithLatencies(ctx context.Context) {
+	s.cfg.chain.GenesisTime().Unix()
+	st := slots.NewSlotTicker(s.cfg.chain.GenesisTime(), params.BeaconConfig().SecondsPerSlot)
+	for {
+		select {
+		case <-s.ctx.Done():
+			return
+		case <-st.C():
+			s.slotToAttLatenciesLock.Lock()
+			for slot, latencyAttestations := range s.slotToAttLatencies {
+				err := s.cfg.beaconDB.SaveAttestationsLatency(ctx, slot, latencyAttestations)
+				if err != nil {
+					log.WithError(err).Error("Could not save attestations with latencies")
+				}
+				delete(s.slotToAttLatencies, slot)
+			}
+			s.slotToAttLatenciesLock.Unlock()
+		}
+	}
 }
