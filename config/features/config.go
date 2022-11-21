@@ -3,19 +3,19 @@ Package features defines which features are enabled for runtime
 in order to selectively enable certain features to maintain a stable runtime.
 
 The process for implementing new features using this package is as follows:
-	1. Add a new CMD flag in flags.go, and place it in the proper list(s) var for its client.
-	2. Add a condition for the flag in the proper Configure function(s) below.
-	3. Place any "new" behavior in the `if flagEnabled` statement.
-	4. Place any "previous" behavior in the `else` statement.
-	5. Ensure any tests using the new feature fail if the flag isn't enabled.
-	5a. Use the following to enable your flag for tests:
-	cfg := &featureconfig.Flags{
-		VerifyAttestationSigs: true,
-	}
-	resetCfg := featureconfig.InitWithReset(cfg)
-	defer resetCfg()
-	6. Add the string for the flags that should be running within E2E to E2EValidatorFlags
-	and E2EBeaconChainFlags.
+ 1. Add a new CMD flag in flags.go, and place it in the proper list(s) var for its client.
+ 2. Add a condition for the flag in the proper Configure function(s) below.
+ 3. Place any "new" behavior in the `if flagEnabled` statement.
+ 4. Place any "previous" behavior in the `else` statement.
+ 5. Ensure any tests using the new feature fail if the flag isn't enabled.
+    5a. Use the following to enable your flag for tests:
+    cfg := &featureconfig.Flags{
+    VerifyAttestationSigs: true,
+    }
+    resetCfg := featureconfig.InitWithReset(cfg)
+    defer resetCfg()
+ 6. Add the string for the flags that should be running within E2E to E2EValidatorFlags
+    and E2EBeaconChainFlags.
 */
 package features
 
@@ -49,6 +49,7 @@ type Flags struct {
 	EnableHistoricalSpaceRepresentation bool // EnableHistoricalSpaceRepresentation enables the saving of registry validators in separate buckets to save space
 	// Logging related toggles.
 	DisableGRPCConnectionLogs bool // Disables logging when a new grpc client has connected.
+	EnableFullSSZDataLogging  bool // Enables logging for full ssz data on rejected gossip messages
 
 	// Slasher toggles.
 	DisableBroadcastSlashings bool // DisableBroadcastSlashings disables p2p broadcasting of proposer and attester slashings.
@@ -250,6 +251,10 @@ func ConfigureBeaconChain(ctx *cli.Context) error {
 	if ctx.Bool(enableStartupOptimistic.Name) {
 		logEnabled(enableStartupOptimistic)
 		cfg.EnableStartOptimistic = true
+	}
+	if ctx.IsSet(enableFullSSZDataLogging.Name) {
+		logEnabled(enableFullSSZDataLogging)
+		cfg.EnableFullSSZDataLogging = true
 	}
 	Init(cfg)
 	return nil

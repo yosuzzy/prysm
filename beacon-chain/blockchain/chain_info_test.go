@@ -198,7 +198,7 @@ func TestHeadState_CanRetrieve(t *testing.T) {
 	c.head = &head{state: s}
 	headState, err := c.HeadState(context.Background())
 	require.NoError(t, err)
-	assert.DeepEqual(t, headState.InnerStateUnsafe(), s.InnerStateUnsafe(), "Incorrect head state received")
+	assert.DeepEqual(t, headState.ToProtoUnsafe(), s.ToProtoUnsafe(), "Incorrect head state received")
 }
 
 func TestGenesisTime_CanRetrieve(t *testing.T) {
@@ -303,31 +303,6 @@ func TestService_HeadGenesisValidatorsRoot(t *testing.T) {
 	c.head = &head{state: s}
 	root = c.HeadGenesisValidatorsRoot()
 	require.DeepEqual(t, root[:], s.GenesisValidatorsRoot())
-}
-func TestService_ChainHeads_ProtoArray(t *testing.T) {
-	ctx := context.Background()
-	c := &Service{cfg: &config{ForkChoiceStore: doublylinkedtree.New()}}
-	ojc := &ethpb.Checkpoint{Root: params.BeaconConfig().ZeroHash[:]}
-	ofc := &ethpb.Checkpoint{Root: params.BeaconConfig().ZeroHash[:]}
-	st, blkRoot, err := prepareForkchoiceState(ctx, 100, [32]byte{'a'}, [32]byte{}, params.BeaconConfig().ZeroHash, ojc, ofc)
-	require.NoError(t, err)
-	require.NoError(t, c.cfg.ForkChoiceStore.InsertNode(ctx, st, blkRoot))
-	st, blkRoot, err = prepareForkchoiceState(ctx, 101, [32]byte{'b'}, [32]byte{'a'}, params.BeaconConfig().ZeroHash, ojc, ofc)
-	require.NoError(t, err)
-	require.NoError(t, c.cfg.ForkChoiceStore.InsertNode(ctx, st, blkRoot))
-	st, blkRoot, err = prepareForkchoiceState(ctx, 102, [32]byte{'c'}, [32]byte{'b'}, params.BeaconConfig().ZeroHash, ojc, ofc)
-	require.NoError(t, err)
-	require.NoError(t, c.cfg.ForkChoiceStore.InsertNode(ctx, st, blkRoot))
-	st, blkRoot, err = prepareForkchoiceState(ctx, 103, [32]byte{'d'}, [32]byte{'a'}, params.BeaconConfig().ZeroHash, ojc, ofc)
-	require.NoError(t, err)
-	require.NoError(t, c.cfg.ForkChoiceStore.InsertNode(ctx, st, blkRoot))
-	st, blkRoot, err = prepareForkchoiceState(ctx, 104, [32]byte{'e'}, [32]byte{'b'}, params.BeaconConfig().ZeroHash, ojc, ofc)
-	require.NoError(t, err)
-	require.NoError(t, c.cfg.ForkChoiceStore.InsertNode(ctx, st, blkRoot))
-
-	roots, slots := c.ChainHeads()
-	require.DeepEqual(t, [][32]byte{{'c'}, {'d'}, {'e'}}, roots)
-	require.DeepEqual(t, []types.Slot{102, 103, 104}, slots)
 }
 
 //

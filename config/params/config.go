@@ -94,11 +94,12 @@ type BeaconChainConfig struct {
 	ProportionalSlashingMultiplier uint64 `yaml:"PROPORTIONAL_SLASHING_MULTIPLIER" spec:"true"` // ProportionalSlashingMultiplier is used as a multiplier on slashed penalties.
 
 	// Max operations per block constants.
-	MaxProposerSlashings uint64 `yaml:"MAX_PROPOSER_SLASHINGS" spec:"true"` // MaxProposerSlashings defines the maximum number of slashings of proposers possible in a block.
-	MaxAttesterSlashings uint64 `yaml:"MAX_ATTESTER_SLASHINGS" spec:"true"` // MaxAttesterSlashings defines the maximum number of casper FFG slashings possible in a block.
-	MaxAttestations      uint64 `yaml:"MAX_ATTESTATIONS" spec:"true"`       // MaxAttestations defines the maximum allowed attestations in a beacon block.
-	MaxDeposits          uint64 `yaml:"MAX_DEPOSITS" spec:"true"`           // MaxDeposits defines the maximum number of validator deposits in a block.
-	MaxVoluntaryExits    uint64 `yaml:"MAX_VOLUNTARY_EXITS" spec:"true"`    // MaxVoluntaryExits defines the maximum number of validator exits in a block.
+	MaxProposerSlashings     uint64 `yaml:"MAX_PROPOSER_SLASHINGS" spec:"true"`      // MaxProposerSlashings defines the maximum number of slashings of proposers possible in a block.
+	MaxAttesterSlashings     uint64 `yaml:"MAX_ATTESTER_SLASHINGS" spec:"true"`      // MaxAttesterSlashings defines the maximum number of casper FFG slashings possible in a block.
+	MaxAttestations          uint64 `yaml:"MAX_ATTESTATIONS" spec:"true"`            // MaxAttestations defines the maximum allowed attestations in a beacon block.
+	MaxDeposits              uint64 `yaml:"MAX_DEPOSITS" spec:"true"`                // MaxDeposits defines the maximum number of validator deposits in a block.
+	MaxVoluntaryExits        uint64 `yaml:"MAX_VOLUNTARY_EXITS" spec:"true"`         // MaxVoluntaryExits defines the maximum number of validator exits in a block.
+	MaxWithdrawalsPerPayload uint64 `yaml:"MAX_WITHDRAWALS_PER_PAYLOAD" spec:"true"` // MaxWithdrawalsPerPayload defines the maximum number of withdrawals in a block.
 
 	// BLS domain values.
 	DomainBeaconProposer              [4]byte `yaml:"DOMAIN_BEACON_PROPOSER" spec:"true"`                // DomainBeaconProposer defines the BLS signature domain for beacon proposal verification.
@@ -128,9 +129,10 @@ type BeaconChainConfig struct {
 	MaxPeersToSync                 int           // MaxPeersToSync describes the limit for number of peers in round robin sync.
 	SlotsPerArchivedPoint          types.Slot    // SlotsPerArchivedPoint defines the number of slots per one archived point.
 	GenesisCountdownInterval       time.Duration // How often to log the countdown until the genesis time is reached.
-	BeaconStateFieldCount          int           // BeaconStateFieldCount defines how many fields are in beacon state.
-	BeaconStateAltairFieldCount    int           // BeaconStateAltairFieldCount defines how many fields are in beacon state hard fork 1.
-	BeaconStateBellatrixFieldCount int           // BeaconStateBellatrixFieldCount defines how many fields are in beacon state post upgrade to the Bellatrix.
+	BeaconStateFieldCount          int           // BeaconStateFieldCount defines how many fields are in the Phase0 beacon state.
+	BeaconStateAltairFieldCount    int           // BeaconStateAltairFieldCount defines how many fields are in the beacon state post upgrade to Altair.
+	BeaconStateBellatrixFieldCount int           // BeaconStateBellatrixFieldCount defines how many fields are in beacon state post upgrade to Bellatrix.
+	BeaconStateCapellaFieldCount   int           // BeaconStateCapellaFieldCount defines how many fields are in beacon state post upgrade to Capella.
 
 	// Slasher constants.
 	WeakSubjectivityPeriod    types.Epoch // WeakSubjectivityPeriod defines the time period expressed in number of epochs were proof of stake network should validate block headers and attestations for slashable events.
