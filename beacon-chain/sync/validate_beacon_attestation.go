@@ -283,7 +283,7 @@ func (s *Service) hasBlockAndState(ctx context.Context, blockRoot [32]byte) bool
 
 func (s *Service) insertAttLatency(slot types.Slot, a *eth.LatencyAttestations_LatencyAttestation) {
 	s.slotToAttLatenciesLock.Lock()
-	defer s.slotToAttLatenciesLock.RUnlock()
+	defer s.slotToAttLatenciesLock.Unlock()
 
 	atts, ok := s.slotToAttLatencies[slot]
 	if !ok {
