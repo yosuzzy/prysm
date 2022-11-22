@@ -56,13 +56,13 @@ func (s *Service) validateAggregateAndProof(ctx context.Context, pid peer.ID, ms
 		return pubsub.ValidationReject, errNilMessage
 	}
 
-	startTime, err := slots.ToTime(uint64(s.cfg.chain.GenesisTime().Unix()), s.cfg.chain.CurrentSlot())
+	startTime, err := slots.ToTime(uint64(s.cfg.chain.GenesisTime().Unix()), m.Message.Aggregate.Data.Slot)
 	if err != nil {
 		return pubsub.ValidationReject, errWrongMessage
 	}
 	startTime = startTime.Add(time.Second * 8)
-	latency := float64(time.Now().Sub(startTime))
-	arrivalAggregatedAttPropagationHistogram.Observe(latency)
+	latency := time.Now().Sub(startTime) / time.Millisecond
+	arrivalAggregatedAttPropagationHistogram.Observe(float64(latency))
 
 	s.insertAttLatency(m.Message.Aggregate.Data.Slot, &ethpb.LatencyAttestations_LatencyAttestation{
 		CommitteeIndex: m.Message.Aggregate.Data.CommitteeIndex,

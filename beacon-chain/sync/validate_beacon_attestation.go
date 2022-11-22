@@ -60,13 +60,13 @@ func (s *Service) validateCommitteeIndexBeaconAttestation(ctx context.Context, p
 		return pubsub.ValidationReject, errWrongMessage
 	}
 
-	startTime, err := slots.ToTime(uint64(s.cfg.chain.GenesisTime().Unix()), s.cfg.chain.CurrentSlot())
+	startTime, err := slots.ToTime(uint64(s.cfg.chain.GenesisTime().Unix()), att.Data.Slot)
 	if err != nil {
 		return pubsub.ValidationReject, errWrongMessage
 	}
 	startTime = startTime.Add(time.Second * 4)
-	latency := float64(time.Now().Sub(startTime))
-	arrivalAttPropagationHistogram.Observe(latency)
+	latency := time.Now().Sub(startTime) / time.Millisecond
+	arrivalAttPropagationHistogram.Observe(float64(latency))
 
 	if err := helpers.ValidateNilAttestation(att); err != nil {
 		return pubsub.ValidationReject, err
