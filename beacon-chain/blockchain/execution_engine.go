@@ -74,7 +74,16 @@ func (s *Service) notifyForkchoiceUpdate(ctx context.Context, arg *notifyForkcho
 		log.WithError(err).Error("Could not get head payload attribute")
 		return nil, nil
 	}
-	payloadID, lastValidHash, err := s.cfg.ExecutionEngineCaller.ForkchoiceUpdated(ctx, fcs, attr)
+	var payloadID *enginev1.PayloadIDBytes
+	var lastValidHash []byte
+	switch arg.headState.Version() {
+	case version.Bellatrix:
+		payloadID, lastValidHash, err = s.cfg.ExecutionEngineCaller.ForkchoiceUpdated(ctx, fcs, attr)
+	case version.Capella:
+		payloadID, lastValidHash, err = s.cfg.ExecutionEngineCaller.ForkchoiceUpdatedV2(ctx, fcs, attr)
+	default:
+		return nil, errors.New("unknown beacon chain version")
+	}
 	if err != nil {
 		switch err {
 		case execution.ErrAcceptedSyncingPayloadStatus:

@@ -22,7 +22,6 @@ import (
 	payloadattribute "github.com/prysmaticlabs/prysm/v3/consensus-types/payload-attribute"
 	"github.com/prysmaticlabs/prysm/v3/encoding/bytesutil"
 	pb "github.com/prysmaticlabs/prysm/v3/proto/engine/v1"
-	"github.com/prysmaticlabs/prysm/v3/runtime/version"
 	"github.com/sirupsen/logrus"
 	"go.opencensus.io/trace"
 )
@@ -51,7 +50,7 @@ const (
 )
 
 // ForkchoiceUpdatedResponse is the response kind received by the
-// engine_forkchoiceUpdatedV1 endpoint.
+// engine_forkchoiceUpdatedV1/V2 endpoint.
 type ForkchoiceUpdatedResponse struct {
 	Status    *pb.PayloadStatus  `json:"payloadStatus"`
 	PayloadId *pb.PayloadIDBytes `json:"payloadId"`
@@ -74,6 +73,9 @@ type ExecutionPayloadReconstructor interface {
 type EngineCaller interface {
 	NewPayload(ctx context.Context, payload interfaces.ExecutionData) ([]byte, error)
 	ForkchoiceUpdated(
+		ctx context.Context, state *pb.ForkchoiceState, attrs payloadattribute.Attributer,
+	) (*pb.PayloadIDBytes, []byte, error)
+	ForkchoiceUpdatedV2(
 		ctx context.Context, state *pb.ForkchoiceState, attrs payloadattribute.Attributer,
 	) (*pb.PayloadIDBytes, []byte, error)
 	GetPayload(ctx context.Context, payloadId [8]byte) (*pb.ExecutionPayload, error)
@@ -129,7 +131,47 @@ func (s *Service) NewPayload(ctx context.Context, payload interfaces.ExecutionDa
 	}
 }
 
-// ForkchoiceUpdated calls the engine_forkchoiceUpdatedV1 method via JSON-RPC.
+// ForkchoiceUpdatedV2 calls the engine_forkchoiceUpdatedV2 method via JSON-RPC.
+func (s *Service) ForkchoiceUpdatedV2(
+	ctx context.Context, state *pb.ForkchoiceState, attrs payloadattribute.Attributer,
+) (*pb.PayloadIDBytes, []byte, error) {
+	ctx, span := trace.StartSpan(ctx, "powchain.engine-api-client.ForkchoiceUpdatedV2")
+	defer span.End()
+	start := time.Now()
+	defer func() {
+		forkchoiceUpdatedLatency.Observe(float64(time.Since(start).Milliseconds()))
+	}()
+
+	d := time.Now().Add(time.Duration(params.BeaconConfig().ExecutionEngineTimeoutValue) * time.Second)
+	ctx, cancel := context.WithDeadline(ctx, d)
+	defer cancel()
+	result := &ForkchoiceUpdatedResponse{}
+	a, err := attrs.PbV2()
+	if err != nil {
+		return nil, nil, err
+	}
+	err = s.rpcClient.CallContext(ctx, result, ForkchoiceUpdatedMethodV2, state, a)
+	if err != nil {
+		return nil, nil, handleRPCError(err)
+	}
+
+	if result.Status == nil {
+		return nil, nil, ErrNilResponse
+	}
+	resp := result.Status
+	switch resp.Status {
+	case pb.PayloadStatus_SYNCING:
+		return nil, nil, ErrAcceptedSyncingPayloadStatus
+	case pb.PayloadStatus_INVALID:
+		return nil, resp.LatestValidHash, ErrInvalidPayloadStatus
+	case pb.PayloadStatus_VALID:
+		return result.PayloadId, resp.LatestValidHash, nil
+	default:
+		return nil, nil, ErrUnknownPayloadStatus
+	}
+}
+
+// ForkchoiceUpdated calls the engine_ForkchoiceUpdated method via JSON-RPC.
 func (s *Service) ForkchoiceUpdated(
 	ctx context.Context, state *pb.ForkchoiceState, attrs payloadattribute.Attributer,
 ) (*pb.PayloadIDBytes, []byte, error) {
@@ -144,25 +186,13 @@ func (s *Service) ForkchoiceUpdated(
 	ctx, cancel := context.WithDeadline(ctx, d)
 	defer cancel()
 	result := &ForkchoiceUpdatedResponse{}
-	switch attrs.Version() {
-	case version.Bellatrix:
-		a, err := attrs.PbV1()
-		if err != nil {
-			return nil, nil, err
-		}
-		err = s.rpcClient.CallContext(ctx, result, ForkchoiceUpdatedMethod, state, a)
-		if err != nil {
-			return nil, nil, handleRPCError(err)
-		}
-	case version.Capella:
-		a, err := attrs.PbV2()
-		if err != nil {
-			return nil, nil, err
-		}
-		err = s.rpcClient.CallContext(ctx, result, ForkchoiceUpdatedMethodV2, state, a)
-		if err != nil {
-			return nil, nil, handleRPCError(err)
-		}
+	a, err := attrs.PbV1()
+	if err != nil {
+		return nil, nil, err
+	}
+	err = s.rpcClient.CallContext(ctx, result, ForkchoiceUpdatedMethod, state, a)
+	if err != nil {
+		return nil, nil, handleRPCError(err)
 	}
 
 	if result.Status == nil {
