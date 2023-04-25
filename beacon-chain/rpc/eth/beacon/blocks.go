@@ -1043,9 +1043,5 @@ func (bs *Server) submitBlock(ctx context.Context, blockRoot [fieldparams.RootLe
 		return status.Errorf(codes.Internal, "Could not broadcast block: %v", err)
 	}
 
-	if err := bs.BlockReceiver.ReceiveBlock(ctx, block, blockRoot); err != nil {
-		return status.Errorf(codes.Internal, "Could not process beacon block: %v", err)
-	}
-
 	return nil
 }

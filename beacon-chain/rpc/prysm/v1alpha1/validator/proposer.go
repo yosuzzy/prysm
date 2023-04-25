@@ -24,6 +24,7 @@ import (
 	"github.com/prysmaticlabs/prysm/v4/consensus-types/primitives"
 	"github.com/prysmaticlabs/prysm/v4/encoding/bytesutil"
 	ethpb "github.com/prysmaticlabs/prysm/v4/proto/prysm/v1alpha1"
+	prysmTime "github.com/prysmaticlabs/prysm/v4/time"
 	"github.com/prysmaticlabs/prysm/v4/time/slots"
 	"github.com/sirupsen/logrus"
 	"go.opencensus.io/trace"
@@ -276,6 +277,23 @@ func (vs *Server) proposeGenericBeaconBlock(ctx context.Context, blk interfaces.
 		})
 	}()
 
+	start := time.Now()
+	b := blk.Block()
+	parentState, err := vs.StateGen.StateByRoot(ctx, b.ParentRoot())
+	if err != nil {
+		return nil, fmt.Errorf("could not get parent state: %v", err)
+	}
+	_, err = transition.ExecuteStateTransition(ctx, parentState, blk)
+	if err != nil {
+		return nil, fmt.Errorf("could not execute state transition: %v", err)
+	}
+
+	if vs.SyncService.HasBlock(b.Slot(), b.ProposerIndex()) {
+		return nil, fmt.Errorf("block already exists in sync service for slot %d and proposer index %d", b.Slot(), b.ProposerIndex())
+	}
+	ms := prysmTime.Now().Sub(start) / time.Millisecond
+	log.Infof("Consensus and eq checks took %d ms", ms)
+
 	// Broadcast the new block to the network.
 	blkPb, err := blk.Proto()
 	if err != nil {
@@ -287,10 +305,6 @@ func (vs *Server) proposeGenericBeaconBlock(ctx context.Context, blk interfaces.
 	log.WithFields(logrus.Fields{
 		"blockRoot": hex.EncodeToString(root[:]),
 	}).Debug("Broadcasting block")
-
-	if err := vs.BlockReceiver.ReceiveBlock(ctx, blk, root); err != nil {
-		return nil, fmt.Errorf("could not process beacon block: %v", err)
-	}
 
 	return &ethpb.ProposeResponse{
 		BlockRoot: root[:],

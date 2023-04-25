@@ -56,6 +56,7 @@ type Server struct {
 	Eth1InfoFetcher        execution.ChainInfoFetcher
 	OptimisticModeFetcher  blockchain.OptimisticModeFetcher
 	SyncChecker            sync.Checker
+	SyncService            sync.Service
 	StateNotifier          statefeed.Notifier
 	BlockNotifier          blockfeed.Notifier
 	P2P                    p2p.Broadcaster
