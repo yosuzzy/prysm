@@ -288,7 +288,7 @@ func (vs *Server) proposeGenericBeaconBlock(ctx context.Context, blk interfaces.
 		return nil, fmt.Errorf("could not execute state transition: %v", err)
 	}
 
-	if vs.SyncService.HasBlock(b.Slot(), b.ProposerIndex()) {
+	if vs.EqChecker.HasBlock(b.Slot(), b.ProposerIndex()) {
 		return nil, fmt.Errorf("block already exists in sync service for slot %d and proposer index %d", b.Slot(), b.ProposerIndex())
 	}
 	ms := prysmTime.Now().Sub(start) / time.Millisecond
