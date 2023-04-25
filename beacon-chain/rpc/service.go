@@ -104,6 +104,7 @@ type Config struct {
 	SyncCommitteeObjectPool       synccommittee.Pool
 	BLSChangesPool                blstoexec.PoolManager
 	SyncService                   chainSync.Checker
+	RegSyncService                chainSync.Service
 	Broadcaster                   p2p.Broadcaster
 	PeersFetcher                  p2p.PeersProvider
 	PeerManager                   p2p.PeerManager
