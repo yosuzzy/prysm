@@ -8,6 +8,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prysmaticlabs/prysm/v4/async"
 	"github.com/prysmaticlabs/prysm/v4/beacon-chain/core/transition"
+	forkchoicetypes "github.com/prysmaticlabs/prysm/v4/beacon-chain/forkchoice/types"
 	"github.com/prysmaticlabs/prysm/v4/beacon-chain/state"
 	"github.com/prysmaticlabs/prysm/v4/config/params"
 	"github.com/prysmaticlabs/prysm/v4/consensus-types/blocks"
@@ -59,6 +60,15 @@ func (s *Service) getAttPreState(ctx context.Context, c *ethpb.Checkpoint) (stat
 			return nil, errors.Wrap(err, "could not process slots")
 		}
 		return cachedState, nil
+	}
+
+	// Do not process attestations for old non viable checkpoints otherwise
+	ok, err := s.cfg.ForkChoiceStore.IsViableForCheckpoint(&forkchoicetypes.Checkpoint{Root: [32]byte(c.Root), Epoch: c.Epoch})
+	if err != nil {
+		return nil, errors.Wrap(err, "could not check checkpoint condition in forkchoice")
+	}
+	if !ok {
+		return nil, ErrNotCheckpoint
 	}
 
 	// Fallback to state regeneration.
