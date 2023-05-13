@@ -35,7 +35,11 @@ func WriteBlockToDisk(block interfaces.ReadOnlySignedBeaconBlock, failed bool) {
 
 func WriteAttestationToDisk(att *eth.Attestation) {
 	d := att.Data
-	filename := fmt.Sprintf("att_%d_%d.ssz", d.Slot, d.CommitteeIndex)
+	bi := att.AggregationBits.BitIndices()
+	if len(bi) == 0 {
+		return
+	}
+	filename := fmt.Sprintf("att_%d_%d_%d.ssz", d.Slot, d.CommitteeIndex, bi[0])
 	fp := path.Join(os.TempDir(), filename)
 	log.Warnf("Writing attestation to disk at %s", fp)
 	enc, err := att.MarshalSSZ()
