@@ -48,6 +48,7 @@ type ForkchoiceFetcher interface {
 	ForkChoiceDump(context.Context) (*ethpbv1.ForkChoiceDump, error)
 	NewSlot(context.Context, primitives.Slot) error
 	ProposerBoost() [32]byte
+	IsViableForCheckpoint(cp *forkchoicetypes.Checkpoint) (bool, error)
 }
 
 // TimeFetcher retrieves the Ethereum consensus data that's related to time.

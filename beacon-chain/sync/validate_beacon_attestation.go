@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"sort"
 	"strings"
 
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
@@ -14,6 +15,7 @@ import (
 	"github.com/prysmaticlabs/prysm/v4/beacon-chain/core/feed"
 	"github.com/prysmaticlabs/prysm/v4/beacon-chain/core/feed/operation"
 	"github.com/prysmaticlabs/prysm/v4/beacon-chain/core/helpers"
+	forkchoicetypes "github.com/prysmaticlabs/prysm/v4/beacon-chain/forkchoice/types"
 	"github.com/prysmaticlabs/prysm/v4/beacon-chain/p2p"
 	"github.com/prysmaticlabs/prysm/v4/beacon-chain/state"
 	"github.com/prysmaticlabs/prysm/v4/config/features"
@@ -23,8 +25,12 @@ import (
 	eth "github.com/prysmaticlabs/prysm/v4/proto/prysm/v1alpha1"
 	"github.com/prysmaticlabs/prysm/v4/proto/prysm/v1alpha1/attestation"
 	"github.com/prysmaticlabs/prysm/v4/time/slots"
+	"github.com/sirupsen/logrus"
 	"go.opencensus.io/trace"
 )
+
+var lastLoggedEpoch = primitives.Epoch(0)
+var unviableCheckpointAttesters []uint64
 
 // Validation
 // - The block being voted for (attestation.data.beacon_block_root) passes validation.
@@ -151,6 +157,33 @@ func (s *Service) validateCommitteeIndexBeaconAttestation(ctx context.Context, p
 	if err != nil {
 		tracing.AnnotateError(span, err)
 		return pubsub.ValidationIgnore, err
+	}
+	c := att.Data.Target
+	ok, err = s.cfg.chain.IsViableForCheckpoint(&forkchoicetypes.Checkpoint{Root: [32]byte(c.Root), Epoch: c.Epoch})
+	if err != nil {
+		log.WithError(err).Error("Could not check if checkpoint is viable")
+	}
+	if !ok {
+		c, err := helpers.BeaconCommitteeFromState(ctx, preState, att.Data.Slot, att.Data.CommitteeIndex)
+		if err != nil {
+			log.WithError(err).Error("Could not get attestation committee")
+		}
+		indices, err := attestation.AttestingIndices(att.AggregationBits, c)
+		if err != nil {
+			log.WithError(err).Error("Could not get attestation committee")
+		}
+		if slots.ToEpoch(att.Data.Slot) > lastLoggedEpoch {
+			sort.Slice(unviableCheckpointAttesters, func(i, j int) bool {
+				return unviableCheckpointAttesters[i] < unviableCheckpointAttesters[j]
+			})
+			log.WithFields(logrus.Fields{
+				"epoch":    lastLoggedEpoch,
+				"attester": unviableCheckpointAttesters,
+			}).Info("unviable attester indices")
+			lastLoggedEpoch = slots.ToEpoch(att.Data.Slot)
+		} else {
+			unviableCheckpointAttesters = append(unviableCheckpointAttesters, indices...)
+		}
 	}
 
 	validationRes, err := s.validateUnaggregatedAttTopic(ctx, att, preState, *msg.Topic)
