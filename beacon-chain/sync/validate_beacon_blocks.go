@@ -54,7 +54,7 @@ func (s *Service) validateBeaconBlockPubSub(ctx context.Context, pid peer.ID, ms
 	m, err := s.decodePubsubMessage(msg)
 	if err != nil {
 		tracing.AnnotateError(span, err)
-		return pubsub.ValidationReject, errors.Wrap(err, "Could not decode message")
+		return pubsub.ValidationReject, errors.Wrapf(err, "Could not decode message with data %#x", msg.Data)
 	}
 
 	s.validateBlockLock.Lock()
