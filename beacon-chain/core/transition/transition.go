@@ -147,6 +147,7 @@ func ProcessSlotsUsingNextSlotCache(
 	ctx, span := trace.StartSpan(ctx, "core.state.ProcessSlotsUsingNextSlotCache")
 	defer span.End()
 
+	parSlot := parentState.Slot()
 	nextSlotState := NextSlotState(parentRoot, slot)
 	if nextSlotState != nil {
 		parentState = nextSlotState
@@ -156,9 +157,10 @@ func ProcessSlotsUsingNextSlotCache(
 	}
 
 	var err error
+	currParSlot := parentState.Slot()
 	parentState, err = ProcessSlots(ctx, parentState, slot)
 	if err != nil {
-		return nil, errors.Wrap(err, "could not process slots")
+		return nil, errors.Wrapf(err, "could not process slots with parent root %#x till slot %d. Old State Slot is %d and new state slot is %d", parentRoot, slot, parSlot, currParSlot)
 	}
 	return parentState, nil
 }

@@ -58,6 +58,7 @@ func NextSlotState(root []byte, wantedSlot types.Slot) state.BeaconState {
 func UpdateNextSlotCache(ctx context.Context, root []byte, state state.BeaconState) error {
 	// Advancing one slot by using a copied state.
 	copied := state.Copy()
+	log.Infof("Updating next slot cache with root %#x to slot %d", root, copied.Slot()+1)
 	copied, err := ProcessSlots(ctx, copied, copied.Slot()+1)
 	if err != nil {
 		return errors.Wrap(err, "could not process slots")
