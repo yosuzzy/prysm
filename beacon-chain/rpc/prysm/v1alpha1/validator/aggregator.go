@@ -4,13 +4,12 @@ import (
 	"bytes"
 	"context"
 
-	"github.com/prysmaticlabs/prysm/v3/beacon-chain/core/helpers"
-	"github.com/prysmaticlabs/prysm/v3/beacon-chain/core/transition"
-	fieldparams "github.com/prysmaticlabs/prysm/v3/config/fieldparams"
-	"github.com/prysmaticlabs/prysm/v3/config/params"
-	"github.com/prysmaticlabs/prysm/v3/encoding/bytesutil"
-	ethpb "github.com/prysmaticlabs/prysm/v3/proto/prysm/v1alpha1"
-	"github.com/prysmaticlabs/prysm/v3/time/slots"
+	"github.com/prysmaticlabs/prysm/v4/beacon-chain/core/helpers"
+	fieldparams "github.com/prysmaticlabs/prysm/v4/config/fieldparams"
+	"github.com/prysmaticlabs/prysm/v4/config/params"
+	"github.com/prysmaticlabs/prysm/v4/encoding/bytesutil"
+	ethpb "github.com/prysmaticlabs/prysm/v4/proto/prysm/v1alpha1"
+	"github.com/prysmaticlabs/prysm/v4/time/slots"
 	"github.com/sirupsen/logrus"
 	"go.opencensus.io/trace"
 	"google.golang.org/grpc/codes"
@@ -34,7 +33,7 @@ func (vs *Server) SubmitAggregateSelectionProof(ctx context.Context, req *ethpb.
 		return nil, err
 	}
 
-	st, err := vs.HeadFetcher.HeadState(ctx)
+	st, err := vs.HeadFetcher.HeadStateReadOnly(ctx)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Could not determine head state: %v", err)
 	}
@@ -71,11 +70,7 @@ func (vs *Server) SubmitAggregateSelectionProof(ctx context.Context, req *ethpb.
 		return nil, status.Errorf(codes.InvalidArgument, "Validator is not an aggregator")
 	}
 
-	if err := vs.AttPool.AggregateUnaggregatedAttestationsBySlotIndex(ctx, req.Slot, req.CommitteeIndex); err != nil {
-		return nil, status.Errorf(codes.Internal, "Could not aggregate unaggregated attestations")
-	}
 	aggregatedAtts := vs.AttPool.AggregatedAttestationsBySlotIndex(ctx, req.Slot, req.CommitteeIndex)
-
 	// Filter out the best aggregated attestation (ie. the one with the most aggregated bits).
 	if len(aggregatedAtts) == 0 {
 		aggregatedAtts = vs.AttPool.UnaggregatedAttestationsBySlotIndex(ctx, req.Slot, req.CommitteeIndex)

@@ -2,22 +2,22 @@ package accounts
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
 	"testing"
 
-	"github.com/prysmaticlabs/prysm/v3/config/params"
-	"github.com/prysmaticlabs/prysm/v3/crypto/bls"
-	"github.com/prysmaticlabs/prysm/v3/encoding/bytesutil"
-	ethpbservice "github.com/prysmaticlabs/prysm/v3/proto/eth/service"
-	"github.com/prysmaticlabs/prysm/v3/testing/assert"
-	"github.com/prysmaticlabs/prysm/v3/testing/require"
-	"github.com/prysmaticlabs/prysm/v3/validator/accounts/iface"
-	"github.com/prysmaticlabs/prysm/v3/validator/accounts/wallet"
-	"github.com/prysmaticlabs/prysm/v3/validator/keymanager"
-	"github.com/prysmaticlabs/prysm/v3/validator/keymanager/local"
+	"github.com/prysmaticlabs/prysm/v4/config/params"
+	"github.com/prysmaticlabs/prysm/v4/crypto/bls"
+	"github.com/prysmaticlabs/prysm/v4/encoding/bytesutil"
+	ethpbservice "github.com/prysmaticlabs/prysm/v4/proto/eth/service"
+	"github.com/prysmaticlabs/prysm/v4/testing/assert"
+	"github.com/prysmaticlabs/prysm/v4/testing/require"
+	"github.com/prysmaticlabs/prysm/v4/validator/accounts/iface"
+	"github.com/prysmaticlabs/prysm/v4/validator/keymanager"
+	"github.com/prysmaticlabs/prysm/v4/validator/keymanager/local"
 )
 
 func TestImportAccounts_NoPassword(t *testing.T) {
@@ -34,13 +34,14 @@ func TestImportAccounts_NoPassword(t *testing.T) {
 		walletPasswordFile:  passwordFilePath,
 		accountPasswordFile: passwordFilePath,
 	})
-	w, err := CreateWalletWithKeymanager(cliCtx.Context, &CreateWalletConfig{
-		WalletCfg: &wallet.Config{
-			WalletDir:      walletDir,
-			KeymanagerKind: keymanager.Local,
-			WalletPassword: password,
-		},
-	})
+	opts := []Option{
+		WithWalletDir(walletDir),
+		WithKeymanagerType(keymanager.Local),
+		WithWalletPassword(password),
+	}
+	acc, err := NewCLIManager(opts...)
+	require.NoError(t, err)
+	w, err := acc.WalletCreate(cliCtx.Context)
 	require.NoError(t, err)
 	km, err := w.InitializeKeymanager(cliCtx.Context, iface.InitKeymanagerConfig{ListenForChanges: false})
 	require.NoError(t, err)
@@ -141,13 +142,14 @@ func Test_importPrivateKeyAsAccount(t *testing.T) {
 		privateKeyFile:     privKeyFileName,
 	})
 	walletPass := "Passwordz0320$"
-	w, err := CreateWalletWithKeymanager(cliCtx.Context, &CreateWalletConfig{
-		WalletCfg: &wallet.Config{
-			WalletDir:      walletDir,
-			KeymanagerKind: keymanager.Local,
-			WalletPassword: walletPass,
-		},
-	})
+	opts := []Option{
+		WithWalletDir(walletDir),
+		WithKeymanagerType(keymanager.Local),
+		WithWalletPassword(walletPass),
+	}
+	acc, err := NewCLIManager(opts...)
+	require.NoError(t, err)
+	w, err := acc.WalletCreate(cliCtx.Context)
 	require.NoError(t, err)
 	km, err := local.NewKeymanager(
 		cliCtx.Context,
@@ -172,4 +174,31 @@ func Test_importPrivateKeyAsAccount(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, len(pubKeys))
 	assert.DeepEqual(t, pubKeys[0], bytesutil.ToBytes48(privKey.PublicKey().Marshal()))
+}
+
+func Test_NameToDescriptionChangeIsOK(t *testing.T) {
+	jsonString := `{"version":1, "name":"hmmm"}`
+	type Obj struct {
+		Version     uint   `json:"version"`
+		Description string `json:"description"`
+	}
+	a := &Obj{}
+	require.NoError(t, json.Unmarshal([]byte(jsonString), a))
+	require.Equal(t, a.Description, "")
+}
+
+func Test_MarshalOmitsName(t *testing.T) {
+	type Obj struct {
+		Version     uint   `json:"version"`
+		Description string `json:"description"`
+		Name        string `json:"name,omitempty"`
+	}
+	a := &Obj{
+		Version:     1,
+		Description: "hmm",
+	}
+
+	bytes, err := json.Marshal(a)
+	require.NoError(t, err)
+	require.Equal(t, string(bytes), `{"version":1,"description":"hmm"}`)
 }

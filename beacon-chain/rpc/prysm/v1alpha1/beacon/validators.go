@@ -6,21 +6,22 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/prysmaticlabs/prysm/v3/api/pagination"
-	"github.com/prysmaticlabs/prysm/v3/beacon-chain/core/altair"
-	"github.com/prysmaticlabs/prysm/v3/beacon-chain/core/epoch/precompute"
-	"github.com/prysmaticlabs/prysm/v3/beacon-chain/core/helpers"
-	coreTime "github.com/prysmaticlabs/prysm/v3/beacon-chain/core/time"
-	"github.com/prysmaticlabs/prysm/v3/beacon-chain/core/transition"
-	"github.com/prysmaticlabs/prysm/v3/beacon-chain/core/validators"
-	"github.com/prysmaticlabs/prysm/v3/beacon-chain/state"
-	"github.com/prysmaticlabs/prysm/v3/cmd"
-	"github.com/prysmaticlabs/prysm/v3/config/params"
-	types "github.com/prysmaticlabs/prysm/v3/consensus-types/primitives"
-	"github.com/prysmaticlabs/prysm/v3/encoding/bytesutil"
-	ethpb "github.com/prysmaticlabs/prysm/v3/proto/prysm/v1alpha1"
-	"github.com/prysmaticlabs/prysm/v3/runtime/version"
-	"github.com/prysmaticlabs/prysm/v3/time/slots"
+	"github.com/prysmaticlabs/prysm/v4/api/pagination"
+	"github.com/prysmaticlabs/prysm/v4/beacon-chain/core/altair"
+	"github.com/prysmaticlabs/prysm/v4/beacon-chain/core/epoch/precompute"
+	"github.com/prysmaticlabs/prysm/v4/beacon-chain/core/helpers"
+	coreTime "github.com/prysmaticlabs/prysm/v4/beacon-chain/core/time"
+	"github.com/prysmaticlabs/prysm/v4/beacon-chain/core/transition"
+	"github.com/prysmaticlabs/prysm/v4/beacon-chain/core/validators"
+	"github.com/prysmaticlabs/prysm/v4/beacon-chain/rpc/core"
+	"github.com/prysmaticlabs/prysm/v4/beacon-chain/state"
+	"github.com/prysmaticlabs/prysm/v4/cmd"
+	"github.com/prysmaticlabs/prysm/v4/config/params"
+	"github.com/prysmaticlabs/prysm/v4/consensus-types/primitives"
+	"github.com/prysmaticlabs/prysm/v4/encoding/bytesutil"
+	ethpb "github.com/prysmaticlabs/prysm/v4/proto/prysm/v1alpha1"
+	"github.com/prysmaticlabs/prysm/v4/runtime/version"
+	"github.com/prysmaticlabs/prysm/v4/time/slots"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -59,7 +60,7 @@ func (bs *Server) ListValidatorBalances(
 		)
 	}
 	res := make([]*ethpb.ValidatorBalances_Balance, 0)
-	filtered := map[types.ValidatorIndex]bool{} // Track filtered validators to prevent duplication in the response.
+	filtered := map[primitives.ValidatorIndex]bool{} // Track filtered validators to prevent duplication in the response.
 
 	startSlot, err := slots.EpochStart(requestedEpoch)
 	if err != nil {
@@ -152,12 +153,12 @@ func (bs *Server) ListValidatorBalances(
 	if len(req.Indices) == 0 && len(req.PublicKeys) == 0 {
 		// Return everything.
 		for i := start; i < end; i++ {
-			pubkey := requestedState.PubkeyAtIndex(types.ValidatorIndex(i))
+			pubkey := requestedState.PubkeyAtIndex(primitives.ValidatorIndex(i))
 			val := vals[i]
 			st := validatorStatus(val, requestedEpoch)
 			res = append(res, &ethpb.ValidatorBalances_Balance{
 				PublicKey: pubkey[:],
-				Index:     types.ValidatorIndex(i),
+				Index:     primitives.ValidatorIndex(i),
 				Balance:   balances[i],
 				Status:    st.String(),
 			})
@@ -183,7 +184,7 @@ func (bs *Server) ListValidatorBalances(
 }
 
 // ListValidators retrieves the current list of active validators with an optional historical epoch flag to
-// to retrieve validator set in time.
+// retrieve validator set in time.
 func (bs *Server) ListValidators(
 	ctx context.Context,
 	req *ethpb.ListValidatorsRequest,
@@ -215,7 +216,7 @@ func (bs *Server) ListValidators(
 	var reqState state.BeaconState
 	var err error
 	if requestedEpoch != currentEpoch {
-		var s types.Slot
+		var s primitives.Slot
 		s, err = slots.EpochStart(requestedEpoch)
 		if err != nil {
 			return nil, err
@@ -289,7 +290,7 @@ func (bs *Server) ListValidators(
 	})
 
 	if len(req.PublicKeys) == 0 && len(req.Indices) == 0 {
-		for i := types.ValidatorIndex(0); uint64(i) < uint64(reqState.NumValidators()); i++ {
+		for i := primitives.ValidatorIndex(0); uint64(i) < uint64(reqState.NumValidators()); i++ {
 			val, err := reqState.ValidatorAtIndex(i)
 			if err != nil {
 				return nil, status.Errorf(codes.Internal, "Could not get validator: %v", err)
@@ -345,7 +346,7 @@ func (bs *Server) GetValidator(
 	ctx context.Context, req *ethpb.GetValidatorRequest,
 ) (*ethpb.Validator, error) {
 	var requestingIndex bool
-	var index types.ValidatorIndex
+	var index primitives.ValidatorIndex
 	var pubKey []byte
 	switch q := req.QueryFilter.(type) {
 	case *ethpb.GetValidatorRequest_Index:
@@ -359,7 +360,7 @@ func (bs *Server) GetValidator(
 			"Need to specify either validator index or public key in request",
 		)
 	}
-	headState, err := bs.HeadFetcher.HeadState(ctx)
+	headState, err := bs.HeadFetcher.HeadStateReadOnly(ctx)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Could not get head state: %v", err)
 	}
@@ -375,7 +376,7 @@ func (bs *Server) GetValidator(
 		return headState.ValidatorAtIndex(index)
 	}
 	pk48 := bytesutil.ToBytes48(pubKey)
-	for i := types.ValidatorIndex(0); uint64(i) < uint64(headState.NumValidators()); i++ {
+	for i := primitives.ValidatorIndex(0); uint64(i) < uint64(headState.NumValidators()); i++ {
 		keyFromState := headState.PubkeyAtIndex(i)
 		if keyFromState == pk48 {
 			return headState.ValidatorAtIndex(i)
@@ -393,7 +394,7 @@ func (bs *Server) GetValidatorActiveSetChanges(
 ) (*ethpb.ActiveSetChanges, error) {
 	currentEpoch := slots.ToEpoch(bs.GenesisTimeFetcher.CurrentSlot())
 
-	var requestedEpoch types.Epoch
+	var requestedEpoch primitives.Epoch
 	switch q := req.QueryFilter.(type) {
 	case *ethpb.GetValidatorActiveSetChangesRequest_Genesis:
 		requestedEpoch = 0
@@ -479,7 +480,7 @@ func (bs *Server) GetValidatorParticipation(
 	currentSlot := bs.GenesisTimeFetcher.CurrentSlot()
 	currentEpoch := slots.ToEpoch(currentSlot)
 
-	var requestedEpoch types.Epoch
+	var requestedEpoch primitives.Epoch
 	switch q := req.QueryFilter.(type) {
 	case *ethpb.GetValidatorParticipationRequest_Genesis:
 		requestedEpoch = 0
@@ -503,7 +504,7 @@ func (bs *Server) GetValidatorParticipation(
 	if err != nil {
 		return nil, err
 	}
-	// Get as close as we can to the end of the current epoch without going past the curent slot.
+	// Get as close as we can to the end of the current epoch without going past the current slot.
 	// The above check ensures a future *epoch* isn't requested, but the end slot of the requested epoch could still
 	// be past the current slot. In that case, use the current slot as the best approximation of the requested epoch.
 	// Replayer will make sure the slot ultimately used is canonical.
@@ -518,8 +519,8 @@ func (bs *Server) GetValidatorParticipation(
 	}
 	var v []*precompute.Validator
 	var b *precompute.Balance
-	switch beaconState.Version() {
-	case version.Phase0:
+
+	if beaconState.Version() == version.Phase0 {
 		v, b, err = precompute.New(ctx, beaconState)
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "Could not set up pre compute instance: %v", err)
@@ -528,7 +529,7 @@ func (bs *Server) GetValidatorParticipation(
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "Could not pre compute attestations: %v", err)
 		}
-	case version.Altair, version.Bellatrix:
+	} else if beaconState.Version() >= version.Altair {
 		v, b, err = altair.InitializePrecomputeValidators(ctx, beaconState)
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "Could not set up altair pre compute instance: %v", err)
@@ -537,9 +538,10 @@ func (bs *Server) GetValidatorParticipation(
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "Could not pre compute attestations: %v", err)
 		}
-	default:
+	} else {
 		return nil, status.Errorf(codes.Internal, "Invalid state type retrieved with a version of %d", beaconState.Version())
 	}
+
 	cp := bs.FinalizationFetcher.FinalizedCheckpt()
 	p := &ethpb.ValidatorParticipationResponse{
 		Epoch:     requestedEpoch,
@@ -572,19 +574,19 @@ func (bs *Server) GetValidatorQueue(
 	}
 	// Queue the validators whose eligible to activate and sort them by activation eligibility epoch number.
 	// Additionally, determine those validators queued to exit
-	awaitingExit := make([]types.ValidatorIndex, 0)
-	exitEpochs := make([]types.Epoch, 0)
-	activationQ := make([]types.ValidatorIndex, 0)
+	awaitingExit := make([]primitives.ValidatorIndex, 0)
+	exitEpochs := make([]primitives.Epoch, 0)
+	activationQ := make([]primitives.ValidatorIndex, 0)
 	vals := headState.Validators()
 	for idx, validator := range vals {
 		eligibleActivated := validator.ActivationEligibilityEpoch != params.BeaconConfig().FarFutureEpoch
 		canBeActive := validator.ActivationEpoch >= helpers.ActivationExitEpoch(headState.FinalizedCheckpointEpoch())
 		if eligibleActivated && canBeActive {
-			activationQ = append(activationQ, types.ValidatorIndex(idx))
+			activationQ = append(activationQ, primitives.ValidatorIndex(idx))
 		}
 		if validator.ExitEpoch != params.BeaconConfig().FarFutureEpoch {
 			exitEpochs = append(exitEpochs, validator.ExitEpoch)
-			awaitingExit = append(awaitingExit, types.ValidatorIndex(idx))
+			awaitingExit = append(awaitingExit, primitives.ValidatorIndex(idx))
 		}
 	}
 	sort.Slice(activationQ, func(i, j int) bool {
@@ -604,7 +606,7 @@ func (bs *Server) GetValidatorQueue(
 		return nil, status.Errorf(codes.Internal, "Could not compute churn limit: %v", err)
 	}
 
-	exitQueueEpoch := types.Epoch(0)
+	exitQueueEpoch := primitives.Epoch(0)
 	for _, i := range exitEpochs {
 		if exitQueueEpoch < i {
 			exitQueueEpoch = i
@@ -624,7 +626,7 @@ func (bs *Server) GetValidatorQueue(
 
 	// We use the exit queue churn to determine if we have passed a churn limit.
 	minEpoch := exitQueueEpoch + params.BeaconConfig().MinValidatorWithdrawabilityDelay
-	exitQueueIndices := make([]types.ValidatorIndex, 0)
+	exitQueueIndices := make([]primitives.ValidatorIndex, 0)
 	for _, valIdx := range awaitingExit {
 		val := vals[valIdx]
 		// Ensure the validator has not yet exited before adding its index to the exit queue.
@@ -658,152 +660,14 @@ func (bs *Server) GetValidatorPerformance(
 	ctx context.Context, req *ethpb.ValidatorPerformanceRequest,
 ) (*ethpb.ValidatorPerformanceResponse, error) {
 	if bs.SyncChecker.Syncing() {
-		return nil, status.Errorf(codes.Unavailable, "Syncing to latest head, not ready to respond")
-	}
-
-	headState, err := bs.HeadFetcher.HeadState(ctx)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "Could not get head state: %v", err)
+		return nil, status.Error(codes.Unavailable, "Syncing to latest head, not ready to respond")
 	}
 	currSlot := bs.GenesisTimeFetcher.CurrentSlot()
-
-	if currSlot > headState.Slot() {
-		headRoot, err := bs.HeadFetcher.HeadRoot(ctx)
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "Could not retrieve head root: %v", err)
-		}
-		headState, err = transition.ProcessSlotsUsingNextSlotCache(ctx, headState, headRoot, currSlot)
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "Could not process slots up to %d: %v", currSlot, err)
-		}
+	response, err := core.ComputeValidatorPerformance(ctx, req, bs.HeadFetcher, currSlot)
+	if err != nil {
+		return nil, status.Errorf(core.ErrorReasonToGRPC(err.Reason), "Could not compute validator performance: %v", err.Err)
 	}
-	var validatorSummary []*precompute.Validator
-	switch headState.Version() {
-	case version.Phase0:
-		vp, bp, err := precompute.New(ctx, headState)
-		if err != nil {
-			return nil, err
-		}
-		vp, bp, err = precompute.ProcessAttestations(ctx, headState, vp, bp)
-		if err != nil {
-			return nil, err
-		}
-		headState, err = precompute.ProcessRewardsAndPenaltiesPrecompute(headState, bp, vp, precompute.AttestationsDelta, precompute.ProposersDelta)
-		if err != nil {
-			return nil, err
-		}
-		validatorSummary = vp
-	case version.Altair, version.Bellatrix:
-		vp, bp, err := altair.InitializePrecomputeValidators(ctx, headState)
-		if err != nil {
-			return nil, err
-		}
-		vp, bp, err = altair.ProcessEpochParticipation(ctx, headState, bp, vp)
-		if err != nil {
-			return nil, err
-		}
-		headState, vp, err = altair.ProcessInactivityScores(ctx, headState, vp)
-		if err != nil {
-			return nil, err
-		}
-		headState, err = altair.ProcessRewardsAndPenaltiesPrecompute(headState, bp, vp)
-		if err != nil {
-			return nil, err
-		}
-		validatorSummary = vp
-	}
-
-	responseCap := len(req.Indices) + len(req.PublicKeys)
-	validatorIndices := make([]types.ValidatorIndex, 0, responseCap)
-	missingValidators := make([][]byte, 0, responseCap)
-
-	filtered := map[types.ValidatorIndex]bool{} // Track filtered validators to prevent duplication in the response.
-	// Convert the list of validator public keys to validator indices and add to the indices set.
-	for _, pubKey := range req.PublicKeys {
-		// Skip empty public key.
-		if len(pubKey) == 0 {
-			continue
-		}
-		pubkeyBytes := bytesutil.ToBytes48(pubKey)
-		idx, ok := headState.ValidatorIndexByPubkey(pubkeyBytes)
-		if !ok {
-			// Validator index not found, track as missing.
-			missingValidators = append(missingValidators, pubKey)
-			continue
-		}
-		if !filtered[idx] {
-			validatorIndices = append(validatorIndices, idx)
-			filtered[idx] = true
-		}
-	}
-	// Add provided indices to the indices set.
-	for _, idx := range req.Indices {
-		if !filtered[idx] {
-			validatorIndices = append(validatorIndices, idx)
-			filtered[idx] = true
-		}
-	}
-	// Depending on the indices and public keys given, results might not be sorted.
-	sort.Slice(validatorIndices, func(i, j int) bool {
-		return validatorIndices[i] < validatorIndices[j]
-	})
-
-	currentEpoch := coreTime.CurrentEpoch(headState)
-	responseCap = len(validatorIndices)
-	pubKeys := make([][]byte, 0, responseCap)
-	beforeTransitionBalances := make([]uint64, 0, responseCap)
-	afterTransitionBalances := make([]uint64, 0, responseCap)
-	effectiveBalances := make([]uint64, 0, responseCap)
-	correctlyVotedSource := make([]bool, 0, responseCap)
-	correctlyVotedTarget := make([]bool, 0, responseCap)
-	correctlyVotedHead := make([]bool, 0, responseCap)
-	inactivityScores := make([]uint64, 0, responseCap)
-	// Append performance summaries.
-	// Also track missing validators using public keys.
-	for _, idx := range validatorIndices {
-		val, err := headState.ValidatorAtIndexReadOnly(idx)
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "could not get validator: %v", err)
-		}
-		pubKey := val.PublicKey()
-		if uint64(idx) >= uint64(len(validatorSummary)) {
-			// Not listed in validator summary yet; treat it as missing.
-			missingValidators = append(missingValidators, pubKey[:])
-			continue
-		}
-		if !helpers.IsActiveValidatorUsingTrie(val, currentEpoch) {
-			// Inactive validator; treat it as missing.
-			missingValidators = append(missingValidators, pubKey[:])
-			continue
-		}
-
-		summary := validatorSummary[idx]
-		pubKeys = append(pubKeys, pubKey[:])
-		effectiveBalances = append(effectiveBalances, summary.CurrentEpochEffectiveBalance)
-		beforeTransitionBalances = append(beforeTransitionBalances, summary.BeforeEpochTransitionBalance)
-		afterTransitionBalances = append(afterTransitionBalances, summary.AfterEpochTransitionBalance)
-		correctlyVotedTarget = append(correctlyVotedTarget, summary.IsPrevEpochTargetAttester)
-		correctlyVotedHead = append(correctlyVotedHead, summary.IsPrevEpochHeadAttester)
-
-		if headState.Version() == version.Phase0 {
-			correctlyVotedSource = append(correctlyVotedSource, summary.IsPrevEpochAttester)
-		} else {
-			correctlyVotedSource = append(correctlyVotedSource, summary.IsPrevEpochSourceAttester)
-			inactivityScores = append(inactivityScores, summary.InactivityScore)
-		}
-	}
-
-	return &ethpb.ValidatorPerformanceResponse{
-		PublicKeys:                    pubKeys,
-		CorrectlyVotedSource:          correctlyVotedSource,
-		CorrectlyVotedTarget:          correctlyVotedTarget, // In altair, when this is true then the attestation was definitely included.
-		CorrectlyVotedHead:            correctlyVotedHead,
-		CurrentEffectiveBalances:      effectiveBalances,
-		BalancesBeforeEpochTransition: beforeTransitionBalances,
-		BalancesAfterEpochTransition:  afterTransitionBalances,
-		MissingValidators:             missingValidators,
-		InactivityScores:              inactivityScores, // Only populated in Altair
-	}, nil
+	return response, nil
 }
 
 // GetIndividualVotes retrieves individual voting status of validators.
@@ -830,14 +694,14 @@ func (bs *Server) GetIndividualVotes(
 		return nil, status.Errorf(codes.Internal, "failed to replay blocks for state at epoch %d: %v", req.Epoch, err)
 	}
 	// Track filtered validators to prevent duplication in the response.
-	filtered := map[types.ValidatorIndex]bool{}
-	filteredIndices := make([]types.ValidatorIndex, 0)
+	filtered := map[primitives.ValidatorIndex]bool{}
+	filteredIndices := make([]primitives.ValidatorIndex, 0)
 	votes := make([]*ethpb.IndividualVotesRespond_IndividualVote, 0, len(req.Indices)+len(req.PublicKeys))
 	// Filter out assignments by public keys.
 	for _, pubKey := range req.PublicKeys {
 		index, ok := st.ValidatorIndexByPubkey(bytesutil.ToBytes48(pubKey))
 		if !ok {
-			votes = append(votes, &ethpb.IndividualVotesRespond_IndividualVote{PublicKey: pubKey, ValidatorIndex: types.ValidatorIndex(^uint64(0))})
+			votes = append(votes, &ethpb.IndividualVotesRespond_IndividualVote{PublicKey: pubKey, ValidatorIndex: primitives.ValidatorIndex(^uint64(0))})
 			continue
 		}
 		filtered[index] = true
@@ -855,8 +719,7 @@ func (bs *Server) GetIndividualVotes(
 
 	var v []*precompute.Validator
 	var bal *precompute.Balance
-	switch st.Version() {
-	case version.Phase0:
+	if st.Version() == version.Phase0 {
 		v, bal, err = precompute.New(ctx, st)
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "Could not set up pre compute instance: %v", err)
@@ -865,7 +728,7 @@ func (bs *Server) GetIndividualVotes(
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "Could not pre compute attestations: %v", err)
 		}
-	case version.Altair, version.Bellatrix:
+	} else if st.Version() >= version.Altair {
 		v, bal, err = altair.InitializePrecomputeValidators(ctx, st)
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "Could not set up altair pre compute instance: %v", err)
@@ -874,7 +737,7 @@ func (bs *Server) GetIndividualVotes(
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "Could not pre compute attestations: %v", err)
 		}
-	default:
+	} else {
 		return nil, status.Errorf(codes.Internal, "Invalid state type retrieved with a version of %d", st.Version())
 	}
 
@@ -886,7 +749,6 @@ func (bs *Server) GetIndividualVotes(
 		val, err := st.ValidatorAtIndexReadOnly(index)
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "Could not retrieve validator: %v", err)
-
 		}
 		pb := val.PublicKey()
 		votes = append(votes, &ethpb.IndividualVotesRespond_IndividualVote{
@@ -915,7 +777,7 @@ func (bs *Server) GetIndividualVotes(
 }
 
 // Determines whether a validator has already exited.
-func validatorHasExited(validator *ethpb.Validator, currentEpoch types.Epoch) bool {
+func validatorHasExited(validator *ethpb.Validator, currentEpoch primitives.Epoch) bool {
 	farFutureEpoch := params.BeaconConfig().FarFutureEpoch
 	if currentEpoch < validator.ActivationEligibilityEpoch {
 		return false
@@ -935,7 +797,7 @@ func validatorHasExited(validator *ethpb.Validator, currentEpoch types.Epoch) bo
 	return true
 }
 
-func validatorStatus(validator *ethpb.Validator, epoch types.Epoch) ethpb.ValidatorStatus {
+func validatorStatus(validator *ethpb.Validator, epoch primitives.Epoch) ethpb.ValidatorStatus {
 	farFutureEpoch := params.BeaconConfig().FarFutureEpoch
 	if validator == nil {
 		return ethpb.ValidatorStatus_UNKNOWN_STATUS

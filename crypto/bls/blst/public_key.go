@@ -6,14 +6,14 @@ import (
 	"fmt"
 
 	"github.com/pkg/errors"
-	lruwrpr "github.com/prysmaticlabs/prysm/v3/cache/lru"
-	fieldparams "github.com/prysmaticlabs/prysm/v3/config/fieldparams"
-	"github.com/prysmaticlabs/prysm/v3/config/params"
-	"github.com/prysmaticlabs/prysm/v3/crypto/bls/common"
+	"github.com/prysmaticlabs/prysm/v4/cache/nonblocking"
+	fieldparams "github.com/prysmaticlabs/prysm/v4/config/fieldparams"
+	"github.com/prysmaticlabs/prysm/v4/config/params"
+	"github.com/prysmaticlabs/prysm/v4/crypto/bls/common"
 )
 
-var maxKeys = 1000000
-var pubkeyCache = lruwrpr.New(maxKeys)
+var maxKeys = 1_000_000
+var pubkeyCache *nonblocking.LRU[[48]byte, common.PublicKey]
 
 // PublicKey used in the BLS signature scheme.
 type PublicKey struct {
@@ -27,7 +27,7 @@ func PublicKeyFromBytes(pubKey []byte) (common.PublicKey, error) {
 	}
 	newKey := (*[fieldparams.BLSPubkeyLength]byte)(pubKey)
 	if cv, ok := pubkeyCache.Get(*newKey); ok {
-		return cv.(*PublicKey).Copy(), nil
+		return cv.Copy(), nil
 	}
 	// Subgroup check NOT done when decompressing pubkey.
 	p := new(blstPublicKey).Uncompress(pubKey)
@@ -92,7 +92,6 @@ func (p *PublicKey) Equals(p2 common.PublicKey) bool {
 
 // Aggregate two public keys.
 func (p *PublicKey) Aggregate(p2 common.PublicKey) common.PublicKey {
-
 	agg := new(blstAggregatePublicKey)
 	// No group check here since it is checked at decompression time
 	agg.Add(p.p, false)
