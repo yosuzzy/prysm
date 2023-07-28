@@ -7,6 +7,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/prysmaticlabs/prysm/v4/beacon-chain/core/helpers"
+	coreState "github.com/prysmaticlabs/prysm/v4/beacon-chain/core/transition"
 	doublylinkedtree "github.com/prysmaticlabs/prysm/v4/beacon-chain/forkchoice/doubly-linked-tree"
 	forkchoicetypes "github.com/prysmaticlabs/prysm/v4/beacon-chain/forkchoice/types"
 	"github.com/prysmaticlabs/prysm/v4/beacon-chain/state"
@@ -70,7 +71,7 @@ type HeadFetcher interface {
 	HeadState(ctx context.Context) (state.BeaconState, error)
 	HeadStateReadOnly(ctx context.Context) (state.ReadOnlyBeaconState, error)
 	HeadValidatorsIndices(ctx context.Context, epoch primitives.Epoch) ([]primitives.ValidatorIndex, error)
-	HeadValidatorsIndicesFromAdvancedSlots(ctx context.Context, epoch types.Epoch) ([]types.ValidatorIndex, error)
+	HeadValidatorsIndicesFromAdvancedSlots(ctx context.Context, epoch primitives.Epoch) ([]primitives.ValidatorIndex, error)
 	HeadGenesisValidatorsRoot() [32]byte
 	HeadETH1Data() *ethpb.Eth1Data
 	HeadPublicKeyToValidatorIndex(pubKey [fieldparams.BLSPubkeyLength]byte) (primitives.ValidatorIndex, bool)
@@ -244,18 +245,19 @@ func (s *Service) HeadValidatorsIndices(ctx context.Context, epoch primitives.Ep
 }
 
 // HeadValidatorsIndicesFromAdvancedSlots returns a list of active validator indices from the head view of a given epoch.
-func (s *Service) HeadValidatorsIndicesFromAdvancedSlots(ctx context.Context, epoch types.Epoch) ([]types.ValidatorIndex, error) {
+func (s *Service) HeadValidatorsIndicesFromAdvancedSlots(ctx context.Context, epoch primitives.Epoch) ([]primitives.ValidatorIndex, error) {
 	s.headLock.RLock()
 	defer s.headLock.RUnlock()
 
 	if !s.hasHeadState() {
-		return []types.ValidatorIndex{}, nil
+		return []primitives.ValidatorIndex{}, nil
 	}
 	startSlot, err := slots.EpochStart(epoch)
 	if err != nil {
 		return nil, err
 	}
-	st, err := coreState.ProcessSlotsIfPossible(ctx, s.headState(ctx), startSlot)
+	rt := s.headRoot()
+	st, err := coreState.ProcessSlotsUsingNextSlotCache(ctx, s.headState(ctx), rt[:], startSlot)
 	if err != nil {
 		return nil, err
 	}
