@@ -17,6 +17,8 @@ import (
 	"github.com/prysmaticlabs/prysm/v4/beacon-chain/core/transition"
 	dbTest "github.com/prysmaticlabs/prysm/v4/beacon-chain/db/testing"
 	doublylinkedtree "github.com/prysmaticlabs/prysm/v4/beacon-chain/forkchoice/doubly-linked-tree"
+	"github.com/prysmaticlabs/prysm/v4/beacon-chain/rpc/eth/shared"
+	rpctesting "github.com/prysmaticlabs/prysm/v4/beacon-chain/rpc/eth/shared/testing"
 	"github.com/prysmaticlabs/prysm/v4/beacon-chain/rpc/testutil"
 	"github.com/prysmaticlabs/prysm/v4/beacon-chain/state"
 	mockSync "github.com/prysmaticlabs/prysm/v4/beacon-chain/sync/initial-sync/testing"
@@ -39,7 +41,13 @@ func TestPublishBlockV2(t *testing.T) {
 	t.Run("Phase 0", func(t *testing.T) {
 		v1alpha1Server := mock2.NewMockBeaconNodeValidatorServer(ctrl)
 		v1alpha1Server.EXPECT().ProposeBeaconBlock(gomock.Any(), mock.MatchedBy(func(req *eth.GenericSignedBeaconBlock) bool {
-			_, ok := req.Block.(*eth.GenericSignedBeaconBlock_Phase0)
+			block, ok := req.Block.(*eth.GenericSignedBeaconBlock_Phase0)
+			converted, err := shared.BeaconBlockFromConsensus(block.Phase0.Block)
+			require.NoError(t, err)
+			var signedblock *shared.SignedBeaconBlock
+			err = json.Unmarshal([]byte(rpctesting.Phase0Block), &signedblock)
+			require.NoError(t, err)
+			require.DeepEqual(t, converted, signedblock.Message)
 			return ok
 		}))
 		server := &Server{
@@ -47,7 +55,7 @@ func TestPublishBlockV2(t *testing.T) {
 			SyncChecker:             &mockSync.Sync{IsSyncing: false},
 		}
 
-		request := httptest.NewRequest(http.MethodPost, "http://foo.example", bytes.NewReader([]byte(phase0Block)))
+		request := httptest.NewRequest(http.MethodPost, "http://foo.example", bytes.NewReader([]byte(rpctesting.Phase0Block)))
 		writer := httptest.NewRecorder()
 		writer.Body = &bytes.Buffer{}
 		server.PublishBlockV2(writer, request)
@@ -56,7 +64,13 @@ func TestPublishBlockV2(t *testing.T) {
 	t.Run("Altair", func(t *testing.T) {
 		v1alpha1Server := mock2.NewMockBeaconNodeValidatorServer(ctrl)
 		v1alpha1Server.EXPECT().ProposeBeaconBlock(gomock.Any(), mock.MatchedBy(func(req *eth.GenericSignedBeaconBlock) bool {
-			_, ok := req.Block.(*eth.GenericSignedBeaconBlock_Altair)
+			block, ok := req.Block.(*eth.GenericSignedBeaconBlock_Altair)
+			converted, err := shared.BeaconBlockAltairFromConsensus(block.Altair.Block)
+			require.NoError(t, err)
+			var signedblock *shared.SignedBeaconBlockAltair
+			err = json.Unmarshal([]byte(rpctesting.AltairBlock), &signedblock)
+			require.NoError(t, err)
+			require.DeepEqual(t, converted, signedblock.Message)
 			return ok
 		}))
 		server := &Server{
@@ -64,7 +78,7 @@ func TestPublishBlockV2(t *testing.T) {
 			SyncChecker:             &mockSync.Sync{IsSyncing: false},
 		}
 
-		request := httptest.NewRequest(http.MethodPost, "http://foo.example", bytes.NewReader([]byte(altairBlock)))
+		request := httptest.NewRequest(http.MethodPost, "http://foo.example", bytes.NewReader([]byte(rpctesting.AltairBlock)))
 		writer := httptest.NewRecorder()
 		writer.Body = &bytes.Buffer{}
 		server.PublishBlockV2(writer, request)
@@ -73,7 +87,13 @@ func TestPublishBlockV2(t *testing.T) {
 	t.Run("Bellatrix", func(t *testing.T) {
 		v1alpha1Server := mock2.NewMockBeaconNodeValidatorServer(ctrl)
 		v1alpha1Server.EXPECT().ProposeBeaconBlock(gomock.Any(), mock.MatchedBy(func(req *eth.GenericSignedBeaconBlock) bool {
-			_, ok := req.Block.(*eth.GenericSignedBeaconBlock_Bellatrix)
+			block, ok := req.Block.(*eth.GenericSignedBeaconBlock_Bellatrix)
+			converted, err := shared.BeaconBlockBellatrixFromConsensus(block.Bellatrix.Block)
+			require.NoError(t, err)
+			var signedblock *shared.SignedBeaconBlockBellatrix
+			err = json.Unmarshal([]byte(rpctesting.BellatrixBlock), &signedblock)
+			require.NoError(t, err)
+			require.DeepEqual(t, converted, signedblock.Message)
 			return ok
 		}))
 		server := &Server{
@@ -81,7 +101,7 @@ func TestPublishBlockV2(t *testing.T) {
 			SyncChecker:             &mockSync.Sync{IsSyncing: false},
 		}
 
-		request := httptest.NewRequest(http.MethodPost, "http://foo.example", bytes.NewReader([]byte(bellatrixBlock)))
+		request := httptest.NewRequest(http.MethodPost, "http://foo.example", bytes.NewReader([]byte(rpctesting.BellatrixBlock)))
 		writer := httptest.NewRecorder()
 		writer.Body = &bytes.Buffer{}
 		server.PublishBlockV2(writer, request)
@@ -90,7 +110,13 @@ func TestPublishBlockV2(t *testing.T) {
 	t.Run("Capella", func(t *testing.T) {
 		v1alpha1Server := mock2.NewMockBeaconNodeValidatorServer(ctrl)
 		v1alpha1Server.EXPECT().ProposeBeaconBlock(gomock.Any(), mock.MatchedBy(func(req *eth.GenericSignedBeaconBlock) bool {
-			_, ok := req.Block.(*eth.GenericSignedBeaconBlock_Capella)
+			block, ok := req.Block.(*eth.GenericSignedBeaconBlock_Capella)
+			converted, err := shared.BeaconBlockCapellaFromConsensus(block.Capella.Block)
+			require.NoError(t, err)
+			var signedblock *shared.SignedBeaconBlockCapella
+			err = json.Unmarshal([]byte(rpctesting.CapellaBlock), &signedblock)
+			require.NoError(t, err)
+			require.DeepEqual(t, converted, signedblock.Message)
 			return ok
 		}))
 		server := &Server{
@@ -98,7 +124,30 @@ func TestPublishBlockV2(t *testing.T) {
 			SyncChecker:             &mockSync.Sync{IsSyncing: false},
 		}
 
-		request := httptest.NewRequest(http.MethodPost, "http://foo.example", bytes.NewReader([]byte(capellaBlock)))
+		request := httptest.NewRequest(http.MethodPost, "http://foo.example", bytes.NewReader([]byte(rpctesting.CapellaBlock)))
+		writer := httptest.NewRecorder()
+		writer.Body = &bytes.Buffer{}
+		server.PublishBlockV2(writer, request)
+		assert.Equal(t, http.StatusOK, writer.Code)
+	})
+	t.Run("Deneb", func(t *testing.T) {
+		v1alpha1Server := mock2.NewMockBeaconNodeValidatorServer(ctrl)
+		v1alpha1Server.EXPECT().ProposeBeaconBlock(gomock.Any(), mock.MatchedBy(func(req *eth.GenericSignedBeaconBlock) bool {
+			block, ok := req.Block.(*eth.GenericSignedBeaconBlock_Deneb)
+			converted, err := shared.BeaconBlockDenebFromConsensus(block.Deneb.Block.Block)
+			require.NoError(t, err)
+			var signedblock *shared.SignedBeaconBlockContentsDeneb
+			err = json.Unmarshal([]byte(rpctesting.DenebBlockContents), &signedblock)
+			require.NoError(t, err)
+			require.DeepEqual(t, converted, signedblock.SignedBlock.Message)
+			return ok
+		}))
+		server := &Server{
+			V1Alpha1ValidatorServer: v1alpha1Server,
+			SyncChecker:             &mockSync.Sync{IsSyncing: false},
+		}
+
+		request := httptest.NewRequest(http.MethodPost, "http://foo.example", bytes.NewReader([]byte(rpctesting.DenebBlockContents)))
 		writer := httptest.NewRecorder()
 		writer.Body = &bytes.Buffer{}
 		server.PublishBlockV2(writer, request)
@@ -126,7 +175,7 @@ func TestPublishBlockV2(t *testing.T) {
 			SyncChecker: &mockSync.Sync{IsSyncing: false},
 		}
 
-		request := httptest.NewRequest(http.MethodPost, "http://foo.example", bytes.NewReader([]byte(blindedBellatrixBlock)))
+		request := httptest.NewRequest(http.MethodPost, "http://foo.example", bytes.NewReader([]byte(rpctesting.BlindedBellatrixBlock)))
 		writer := httptest.NewRecorder()
 		writer.Body = &bytes.Buffer{}
 		server.PublishBlockV2(writer, request)
@@ -153,7 +202,6 @@ func TestPublishBlockV2(t *testing.T) {
 
 func TestPublishBlockV2SSZ(t *testing.T) {
 	ctrl := gomock.NewController(t)
-
 	t.Run("Bellatrix", func(t *testing.T) {
 		v1alpha1Server := mock2.NewMockBeaconNodeValidatorServer(ctrl)
 		v1alpha1Server.EXPECT().ProposeBeaconBlock(gomock.Any(), mock.MatchedBy(func(req *eth.GenericSignedBeaconBlock) bool {
@@ -164,8 +212,8 @@ func TestPublishBlockV2SSZ(t *testing.T) {
 			V1Alpha1ValidatorServer: v1alpha1Server,
 			SyncChecker:             &mockSync.Sync{IsSyncing: false},
 		}
-		var bellablock SignedBeaconBlockBellatrix
-		err := json.Unmarshal([]byte(bellatrixBlock), &bellablock)
+		var bellablock shared.SignedBeaconBlockBellatrix
+		err := json.Unmarshal([]byte(rpctesting.BellatrixBlock), &bellablock)
 		require.NoError(t, err)
 		genericBlock, err := bellablock.ToGeneric()
 		require.NoError(t, err)
@@ -189,8 +237,8 @@ func TestPublishBlockV2SSZ(t *testing.T) {
 			SyncChecker:             &mockSync.Sync{IsSyncing: false},
 		}
 
-		var cblock SignedBeaconBlockCapella
-		err := json.Unmarshal([]byte(capellaBlock), &cblock)
+		var cblock shared.SignedBeaconBlockCapella
+		err := json.Unmarshal([]byte(rpctesting.CapellaBlock), &cblock)
 		require.NoError(t, err)
 		genericBlock, err := cblock.ToGeneric()
 		require.NoError(t, err)
@@ -214,8 +262,8 @@ func TestPublishBlockV2SSZ(t *testing.T) {
 			SyncChecker:             &mockSync.Sync{IsSyncing: false},
 		}
 
-		var dblock SignedBeaconBlockContentsDeneb
-		err := json.Unmarshal([]byte(denebBlockContents), &dblock)
+		var dblock shared.SignedBeaconBlockContentsDeneb
+		err := json.Unmarshal([]byte(rpctesting.DenebBlockContents), &dblock)
 		require.NoError(t, err)
 		genericBlock, err := dblock.ToGeneric()
 		require.NoError(t, err)
@@ -235,7 +283,7 @@ func TestPublishBlockV2SSZ(t *testing.T) {
 			SyncChecker: &mockSync.Sync{IsSyncing: false},
 		}
 
-		request := httptest.NewRequest(http.MethodPost, "http://foo.example", bytes.NewReader([]byte(blindedBellatrixBlock)))
+		request := httptest.NewRequest(http.MethodPost, "http://foo.example", bytes.NewReader([]byte(rpctesting.BlindedBellatrixBlock)))
 		writer := httptest.NewRecorder()
 		writer.Body = &bytes.Buffer{}
 		server.PublishBlockV2(writer, request)
@@ -249,7 +297,13 @@ func TestPublishBlindedBlockV2(t *testing.T) {
 	t.Run("Phase 0", func(t *testing.T) {
 		v1alpha1Server := mock2.NewMockBeaconNodeValidatorServer(ctrl)
 		v1alpha1Server.EXPECT().ProposeBeaconBlock(gomock.Any(), mock.MatchedBy(func(req *eth.GenericSignedBeaconBlock) bool {
-			_, ok := req.Block.(*eth.GenericSignedBeaconBlock_Phase0)
+			block, ok := req.Block.(*eth.GenericSignedBeaconBlock_Phase0)
+			converted, err := shared.BeaconBlockFromConsensus(block.Phase0.Block)
+			require.NoError(t, err)
+			var signedblock *shared.SignedBeaconBlock
+			err = json.Unmarshal([]byte(rpctesting.Phase0Block), &signedblock)
+			require.NoError(t, err)
+			require.DeepEqual(t, converted, signedblock.Message)
 			return ok
 		}))
 		server := &Server{
@@ -257,7 +311,7 @@ func TestPublishBlindedBlockV2(t *testing.T) {
 			SyncChecker:             &mockSync.Sync{IsSyncing: false},
 		}
 
-		request := httptest.NewRequest(http.MethodPost, "http://foo.example", bytes.NewReader([]byte(phase0Block)))
+		request := httptest.NewRequest(http.MethodPost, "http://foo.example", bytes.NewReader([]byte(rpctesting.Phase0Block)))
 		writer := httptest.NewRecorder()
 		writer.Body = &bytes.Buffer{}
 		server.PublishBlindedBlockV2(writer, request)
@@ -266,7 +320,13 @@ func TestPublishBlindedBlockV2(t *testing.T) {
 	t.Run("Altair", func(t *testing.T) {
 		v1alpha1Server := mock2.NewMockBeaconNodeValidatorServer(ctrl)
 		v1alpha1Server.EXPECT().ProposeBeaconBlock(gomock.Any(), mock.MatchedBy(func(req *eth.GenericSignedBeaconBlock) bool {
-			_, ok := req.Block.(*eth.GenericSignedBeaconBlock_Altair)
+			block, ok := req.Block.(*eth.GenericSignedBeaconBlock_Altair)
+			converted, err := shared.BeaconBlockAltairFromConsensus(block.Altair.Block)
+			require.NoError(t, err)
+			var signedblock *shared.SignedBeaconBlockAltair
+			err = json.Unmarshal([]byte(rpctesting.AltairBlock), &signedblock)
+			require.NoError(t, err)
+			require.DeepEqual(t, converted, signedblock.Message)
 			return ok
 		}))
 		server := &Server{
@@ -274,16 +334,22 @@ func TestPublishBlindedBlockV2(t *testing.T) {
 			SyncChecker:             &mockSync.Sync{IsSyncing: false},
 		}
 
-		request := httptest.NewRequest(http.MethodPost, "http://foo.example", bytes.NewReader([]byte(altairBlock)))
+		request := httptest.NewRequest(http.MethodPost, "http://foo.example", bytes.NewReader([]byte(rpctesting.AltairBlock)))
 		writer := httptest.NewRecorder()
 		writer.Body = &bytes.Buffer{}
 		server.PublishBlindedBlockV2(writer, request)
 		assert.Equal(t, http.StatusOK, writer.Code)
 	})
-	t.Run("Bellatrix", func(t *testing.T) {
+	t.Run("Blinded Bellatrix", func(t *testing.T) {
 		v1alpha1Server := mock2.NewMockBeaconNodeValidatorServer(ctrl)
 		v1alpha1Server.EXPECT().ProposeBeaconBlock(gomock.Any(), mock.MatchedBy(func(req *eth.GenericSignedBeaconBlock) bool {
-			_, ok := req.Block.(*eth.GenericSignedBeaconBlock_BlindedBellatrix)
+			block, ok := req.Block.(*eth.GenericSignedBeaconBlock_BlindedBellatrix)
+			converted, err := shared.BlindedBeaconBlockBellatrixFromConsensus(block.BlindedBellatrix.Block)
+			require.NoError(t, err)
+			var signedblock *shared.SignedBlindedBeaconBlockBellatrix
+			err = json.Unmarshal([]byte(rpctesting.BlindedBellatrixBlock), &signedblock)
+			require.NoError(t, err)
+			require.DeepEqual(t, converted, signedblock.Message)
 			return ok
 		}))
 		server := &Server{
@@ -291,16 +357,22 @@ func TestPublishBlindedBlockV2(t *testing.T) {
 			SyncChecker:             &mockSync.Sync{IsSyncing: false},
 		}
 
-		request := httptest.NewRequest(http.MethodPost, "http://foo.example", bytes.NewReader([]byte(blindedBellatrixBlock)))
+		request := httptest.NewRequest(http.MethodPost, "http://foo.example", bytes.NewReader([]byte(rpctesting.BlindedBellatrixBlock)))
 		writer := httptest.NewRecorder()
 		writer.Body = &bytes.Buffer{}
 		server.PublishBlindedBlockV2(writer, request)
 		assert.Equal(t, http.StatusOK, writer.Code)
 	})
-	t.Run("Capella", func(t *testing.T) {
+	t.Run("Blinded Capella", func(t *testing.T) {
 		v1alpha1Server := mock2.NewMockBeaconNodeValidatorServer(ctrl)
 		v1alpha1Server.EXPECT().ProposeBeaconBlock(gomock.Any(), mock.MatchedBy(func(req *eth.GenericSignedBeaconBlock) bool {
-			_, ok := req.Block.(*eth.GenericSignedBeaconBlock_BlindedCapella)
+			block, ok := req.Block.(*eth.GenericSignedBeaconBlock_BlindedCapella)
+			converted, err := shared.BlindedBeaconBlockCapellaFromConsensus(block.BlindedCapella.Block)
+			require.NoError(t, err)
+			var signedblock *shared.SignedBlindedBeaconBlockCapella
+			err = json.Unmarshal([]byte(rpctesting.BlindedCapellaBlock), &signedblock)
+			require.NoError(t, err)
+			require.DeepEqual(t, converted, signedblock.Message)
 			return ok
 		}))
 		server := &Server{
@@ -308,7 +380,30 @@ func TestPublishBlindedBlockV2(t *testing.T) {
 			SyncChecker:             &mockSync.Sync{IsSyncing: false},
 		}
 
-		request := httptest.NewRequest(http.MethodPost, "http://foo.example", bytes.NewReader([]byte(blindedCapellaBlock)))
+		request := httptest.NewRequest(http.MethodPost, "http://foo.example", bytes.NewReader([]byte(rpctesting.BlindedCapellaBlock)))
+		writer := httptest.NewRecorder()
+		writer.Body = &bytes.Buffer{}
+		server.PublishBlindedBlockV2(writer, request)
+		assert.Equal(t, http.StatusOK, writer.Code)
+	})
+	t.Run("Blinded Deneb", func(t *testing.T) {
+		v1alpha1Server := mock2.NewMockBeaconNodeValidatorServer(ctrl)
+		v1alpha1Server.EXPECT().ProposeBeaconBlock(gomock.Any(), mock.MatchedBy(func(req *eth.GenericSignedBeaconBlock) bool {
+			block, ok := req.Block.(*eth.GenericSignedBeaconBlock_BlindedDeneb)
+			converted, err := shared.BlindedBeaconBlockDenebFromConsensus(block.BlindedDeneb.Block.Block)
+			require.NoError(t, err)
+			var signedblock *shared.SignedBlindedBeaconBlockContentsDeneb
+			err = json.Unmarshal([]byte(rpctesting.BlindedDenebBlockContents), &signedblock)
+			require.NoError(t, err)
+			require.DeepEqual(t, converted, signedblock.SignedBlindedBlock.Message)
+			return ok
+		}))
+		server := &Server{
+			V1Alpha1ValidatorServer: v1alpha1Server,
+			SyncChecker:             &mockSync.Sync{IsSyncing: false},
+		}
+
+		request := httptest.NewRequest(http.MethodPost, "http://foo.example", bytes.NewReader([]byte(rpctesting.BlindedDenebBlockContents)))
 		writer := httptest.NewRecorder()
 		writer.Body = &bytes.Buffer{}
 		server.PublishBlindedBlockV2(writer, request)
@@ -336,7 +431,7 @@ func TestPublishBlindedBlockV2(t *testing.T) {
 			SyncChecker: &mockSync.Sync{IsSyncing: false},
 		}
 
-		request := httptest.NewRequest(http.MethodPost, "http://foo.example", bytes.NewReader([]byte(bellatrixBlock)))
+		request := httptest.NewRequest(http.MethodPost, "http://foo.example", bytes.NewReader([]byte(rpctesting.BellatrixBlock)))
 		writer := httptest.NewRecorder()
 		writer.Body = &bytes.Buffer{}
 		server.PublishBlindedBlockV2(writer, request)
@@ -374,8 +469,8 @@ func TestPublishBlindedBlockV2SSZ(t *testing.T) {
 			SyncChecker:             &mockSync.Sync{IsSyncing: false},
 		}
 
-		var bellablock SignedBlindedBeaconBlockBellatrix
-		err := json.Unmarshal([]byte(blindedBellatrixBlock), &bellablock)
+		var bellablock shared.SignedBlindedBeaconBlockBellatrix
+		err := json.Unmarshal([]byte(rpctesting.BlindedBellatrixBlock), &bellablock)
 		require.NoError(t, err)
 		genericBlock, err := bellablock.ToGeneric()
 		require.NoError(t, err)
@@ -399,8 +494,8 @@ func TestPublishBlindedBlockV2SSZ(t *testing.T) {
 			SyncChecker:             &mockSync.Sync{IsSyncing: false},
 		}
 
-		var cblock SignedBlindedBeaconBlockCapella
-		err := json.Unmarshal([]byte(blindedCapellaBlock), &cblock)
+		var cblock shared.SignedBlindedBeaconBlockCapella
+		err := json.Unmarshal([]byte(rpctesting.BlindedCapellaBlock), &cblock)
 		require.NoError(t, err)
 		genericBlock, err := cblock.ToGeneric()
 		require.NoError(t, err)
@@ -424,8 +519,8 @@ func TestPublishBlindedBlockV2SSZ(t *testing.T) {
 			SyncChecker:             &mockSync.Sync{IsSyncing: false},
 		}
 
-		var cblock SignedBlindedBeaconBlockContentsDeneb
-		err := json.Unmarshal([]byte(blindedDenebBlockContents), &cblock)
+		var cblock shared.SignedBlindedBeaconBlockContentsDeneb
+		err := json.Unmarshal([]byte(rpctesting.BlindedDenebBlockContents), &cblock)
 		require.NoError(t, err)
 		genericBlock, err := cblock.ToGeneric()
 		require.NoError(t, err)
@@ -445,7 +540,7 @@ func TestPublishBlindedBlockV2SSZ(t *testing.T) {
 			SyncChecker: &mockSync.Sync{IsSyncing: false},
 		}
 
-		request := httptest.NewRequest(http.MethodPost, "http://foo.example", bytes.NewReader([]byte(bellatrixBlock)))
+		request := httptest.NewRequest(http.MethodPost, "http://foo.example", bytes.NewReader([]byte(rpctesting.BellatrixBlock)))
 		writer := httptest.NewRecorder()
 		writer.Body = &bytes.Buffer{}
 		server.PublishBlindedBlockV2(writer, request)

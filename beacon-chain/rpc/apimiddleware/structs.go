@@ -31,10 +31,6 @@ type WeakSubjectivityResponse struct {
 	} `json:"data"`
 }
 
-type FeeRecipientsRequestJSON struct {
-	Recipients []*FeeRecipientJson `json:"recipients"`
-}
-
 type StateRootResponseJson struct {
 	Data                *StateRootResponse_StateRootJson `json:"data"`
 	ExecutionOptimistic bool                             `json:"execution_optimistic"`
@@ -149,10 +145,6 @@ type AttesterSlashingsPoolResponseJson struct {
 
 type ProposerSlashingsPoolResponseJson struct {
 	Data []*ProposerSlashingJson `json:"data"`
-}
-
-type SubmitSyncCommitteeSignaturesRequestJson struct {
-	Data []*SyncCommitteeMessageJson `json:"data"`
 }
 
 type BLSToExecutionChangesPoolResponseJson struct {
@@ -794,11 +786,6 @@ type IndexedAttestationJson struct {
 	Signature        string               `json:"signature" hex:"true"`
 }
 
-type FeeRecipientJson struct {
-	ValidatorIndex string `json:"validator_index"`
-	FeeRecipient   string `json:"fee_recipient" hex:"true"`
-}
-
 type AttestationJson struct {
 	AggregationBits string               `json:"aggregation_bits" hex:"true"`
 	Data            *AttestationDataJson `json:"data"`
@@ -848,13 +835,6 @@ type SignedVoluntaryExitJson struct {
 type VoluntaryExitJson struct {
 	Epoch          string `json:"epoch"`
 	ValidatorIndex string `json:"validator_index"`
-}
-
-type SyncCommitteeMessageJson struct {
-	Slot            string `json:"slot"`
-	BeaconBlockRoot string `json:"beacon_block_root" hex:"true"`
-	ValidatorIndex  string `json:"validator_index"`
-	Signature       string `json:"signature" hex:"true"`
 }
 
 type IdentityJson struct {
