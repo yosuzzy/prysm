@@ -211,6 +211,7 @@ func (vs *Server) GetBeaconBlock(ctx context.Context, req *ethpb.BlockRequest) (
 			Block: pb.(*ethpb.BeaconBlockDeneb),
 			Blobs: fullBlobs,
 		}
+		log.Info("Sending full blobs to validator ", len(blockAndBlobs.Blobs))
 		return &ethpb.GenericBeaconBlock{Block: &ethpb.GenericBeaconBlock_Deneb{Deneb: blockAndBlobs}}, nil
 	}
 
@@ -359,12 +360,14 @@ func (vs *Server) ProposeBeaconBlock(ctx context.Context, req *ethpb.GenericSign
 			}
 		}
 		sidecars := make([]*ethpb.BlobSidecar, len(scs))
+		log.Info("Broadcasting sidecars to validator ", len(scs))
 		for i, sc := range scs {
 			if err := vs.P2P.BroadcastBlob(ctx, sc.Message.Index, sc); err != nil {
 				log.WithError(err).Errorf("Could not broadcast blob sidecar index %d / %d", i, len(scs))
 			}
 			sidecars[i] = sc.Message
 		}
+		log.Info("Saving sidecar ", len(scs))
 		if len(scs) > 0 {
 			if err := vs.BeaconDB.SaveBlobSidecar(ctx, sidecars); err != nil {
 				return nil, err

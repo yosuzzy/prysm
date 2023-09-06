@@ -134,6 +134,11 @@ func (v *validator) ProposeBlock(ctx context.Context, slot primitives.Slot, pubK
 				Message:   blob,
 				Signature: blobSig,
 			}
+			log.WithFields(logrus.Fields{
+				"blobIndex": i,
+				"slot":      slot,
+				"root":      fmt.Sprintf("%#x", bytesutil.Trunc(blob.BlockRoot)),
+			}).Info("Signed blob")
 		}
 		denebBlock, err := blk.PbDenebBlock()
 		if err != nil {

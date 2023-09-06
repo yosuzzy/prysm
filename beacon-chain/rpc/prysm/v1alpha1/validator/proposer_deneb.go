@@ -7,6 +7,7 @@ import (
 	ethpb "github.com/prysmaticlabs/prysm/v4/proto/prysm/v1alpha1"
 	"github.com/prysmaticlabs/prysm/v4/runtime/version"
 	"github.com/prysmaticlabs/prysm/v4/time/slots"
+	"github.com/sirupsen/logrus"
 )
 
 // setKzgCommitments sets the KZG commitment on the block.
@@ -31,6 +32,12 @@ func setKzgCommitments(blk interfaces.SignedBeaconBlock, bundle *enginev1.BlobsB
 	if bundle == nil {
 		return nil
 	}
+
+	log.WithFields(logrus.Fields{
+		"kzgCount":  len(bundle.KzgCommitments),
+		"blobCount": len(bundle.Blobs),
+	}).Info("Setting kzg commitment")
+
 	return blk.SetBlobKzgCommitments(bundle.KzgCommitments)
 }
 
