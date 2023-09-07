@@ -590,6 +590,7 @@ func (s *Service) isDataAvailable(ctx context.Context, root [32]byte, signed int
 				s.blobNotifier.Lock()
 				delete(s.blobNotifier.chanForRoot, root)
 				s.blobNotifier.Unlock()
+				time.Sleep(500 * time.Millisecond)
 				sidecars, err := s.cfg.BeaconDB.BlobSidecarsByRoot(ctx, root)
 				if err != nil {
 					return errors.Wrap(err, "could not get blob sidecars")
