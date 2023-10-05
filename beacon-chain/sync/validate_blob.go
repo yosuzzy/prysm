@@ -82,6 +82,7 @@ func (s *Service) validateBlob(ctx context.Context, pid peer.ID, msg *pubsub.Mes
 		if err := s.sendBatchRootRequest(ctx, [][32]byte{parentRoot}, rand.NewGenerator()); err != nil {
 			return pubsub.ValidationIgnore, err
 		}
+		s.pendingBlobSidecars.add(sBlob)
 		return pubsub.ValidationIgnore, nil
 	}
 
