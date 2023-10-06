@@ -20,6 +20,7 @@ import (
 	"github.com/prysmaticlabs/prysm/v4/encoding/bytesutil"
 	"github.com/prysmaticlabs/prysm/v4/encoding/ssz/equality"
 	"github.com/prysmaticlabs/prysm/v4/monitoring/tracing"
+	eth "github.com/prysmaticlabs/prysm/v4/proto/prysm/v1alpha1"
 	"github.com/prysmaticlabs/prysm/v4/time/slots"
 	"github.com/sirupsen/logrus"
 	"github.com/trailofbits/go-mutexasserts"
@@ -165,6 +166,30 @@ func (s *Service) processPendingBlocks(ctx context.Context) error {
 			default:
 			}
 
+			sbs := s.pendingBlobSidecars.pop(b.Block().ParentRoot())
+			blobs := make([]*eth.BlobSidecar, 0, len(sbs))
+			for _, sb := range sbs {
+				if _, err := s.validateBlobPostSeenParent(ctx, sb); err != nil {
+					log.WithError(err).Error("Failed to validate blob in pending queue")
+				}
+				blobs = append(blobs, sb.Message)
+			}
+			if blobs != nil && len(blobs) > 0 {
+				if err := s.cfg.beaconDB.SaveBlobSidecar(ctx, blobs); err != nil {
+					log.WithError(err).Error("Failed to save blob sidecar")
+				}
+			}
+			_, bestPeers := s.cfg.p2p.Peers().BestFinalized(maxPeerRequest, s.cfg.chain.FinalizedCheckpt().Epoch)
+			if len(bestPeers) == 0 {
+				log.Error("No best peers found")
+				continue
+			}
+			pid := bestPeers[randGen.Int()%len(bestPeers)]
+			if err := s.requestPendingBlobs(ctx, b.Block(), blkRoot[:], pid); err != nil {
+				log.WithError(err).Error("Failed to request pending blobs")
+				continue
+			}
+
 			if err := s.cfg.chain.ReceiveBlock(ctx, b, blkRoot); err != nil {
 				if blockchain.IsInvalidBlock(err) {
 					r := blockchain.InvalidBlockRoot(err)
@@ -248,7 +273,8 @@ func (s *Service) sendBatchRootRequest(ctx context.Context, roots [][32]byte, ra
 
 	roots = dedupRoots(roots)
 	for i := len(roots) - 1; i >= 0; i-- {
-		if s.cfg.chain.BlockBeingSynced(roots[i]) {
+		r := roots[i]
+		if s.seenPendingBlocks[r] || s.cfg.chain.BlockBeingSynced(r) {
 			roots = append(roots[:i], roots[i+1:]...)
 		}
 	}

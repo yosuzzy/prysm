@@ -6,11 +6,13 @@ import (
 	libp2pcore "github.com/libp2p/go-libp2p/core"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/pkg/errors"
+	"github.com/prysmaticlabs/prysm/v4/beacon-chain/db"
 	"github.com/prysmaticlabs/prysm/v4/beacon-chain/execution"
 	"github.com/prysmaticlabs/prysm/v4/beacon-chain/p2p/types"
 	"github.com/prysmaticlabs/prysm/v4/config/params"
 	"github.com/prysmaticlabs/prysm/v4/consensus-types/blocks"
 	"github.com/prysmaticlabs/prysm/v4/consensus-types/interfaces"
+	"github.com/prysmaticlabs/prysm/v4/encoding/bytesutil"
 	eth "github.com/prysmaticlabs/prysm/v4/proto/prysm/v1alpha1"
 	"github.com/prysmaticlabs/prysm/v4/runtime/version"
 )
@@ -28,6 +30,7 @@ func (s *Service) sendRecentBeaconBlocksRequest(ctx context.Context, blockRoots 
 		}
 		s.pendingQueueLock.Lock()
 		defer s.pendingQueueLock.Unlock()
+		log.Errorf("Inserting block to pending queue: %s %d", blkRoot, blk.Block().Slot())
 		if err := s.insertBlockToPendingQueue(blk.Block().Slot(), blk, blkRoot); err != nil {
 			return err
 		}
@@ -128,10 +131,27 @@ func (s *Service) requestPendingBlobs(ctx context.Context, b interfaces.ReadOnly
 		return nil
 	}
 
+	savedBlobs, err := s.cfg.beaconDB.BlobSidecarsByRoot(ctx, bytesutil.ToBytes32(br))
+	switch {
+	case errors.Is(err, db.ErrNotFound):
+	case err != nil:
+		return err
+	}
+	savedIndices := make(map[uint64]struct{})
+	for _, blob := range savedBlobs {
+		savedIndices[blob.Index] = struct{}{}
+	}
+
 	// Build request for blob sidecars.
-	blobId := make([]*eth.BlobIdentifier, len(c))
+	blobId := make([]*eth.BlobIdentifier, 0, len(c))
 	for i := range c {
-		blobId[i] = &eth.BlobIdentifier{Index: uint64(i), BlockRoot: br}
+		if _, ok := savedIndices[uint64(i)]; ok {
+			continue
+		}
+		blobId = append(blobId, &eth.BlobIdentifier{Index: uint64(i), BlockRoot: br})
+	}
+	if len(blobId) == 0 {
+		return nil
 	}
 
 	ctxByte, err := ContextByteVersionsForValRoot(s.cfg.chain.GenesisValidatorsRoot())

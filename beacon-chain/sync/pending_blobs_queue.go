@@ -34,9 +34,11 @@ func (s *Service) processPendingBlobs() {
 		case <-sub.Err():
 			return
 		case e := <-eventFeed:
+			// `handleEvent` returns early during initial sync as cache returns nil.
 			s.handleEvent(s.ctx, e)
 		case <-cleanupTicker.C():
-			log.Info("Cleaning up pending blobs")
+			// No harm during initial syncing; acts as a no-op in cleanup.
+			// Ensures safety in case of node desynchronization.
 			if s.pendingBlobSidecars == nil {
 				return
 			}
@@ -58,7 +60,6 @@ func (s *Service) handleNewBlockEvent(ctx context.Context, e *feed.Event) {
 	if !ok {
 		return
 	}
-	log.Infof("Processing blobs for parent root %x", data.SignedBlock.Block().ParentRoot())
 	s.processBlobsFromSidecars(ctx, data.SignedBlock.Block().ParentRoot())
 }
 
@@ -66,7 +67,6 @@ func (s *Service) handleNewBlockEvent(ctx context.Context, e *feed.Event) {
 func (s *Service) processBlobsFromSidecars(ctx context.Context, parentRoot [32]byte) {
 	blobs := s.pendingBlobSidecars.pop(parentRoot)
 	for _, blob := range blobs {
-		log.Infof("Processing blob for slot %d", blob.Message.Slot)
 		if err := s.validateAndReceiveBlob(ctx, blob); err != nil {
 			log.WithError(err).Error("Failed to validate blob in pending queue")
 		}
