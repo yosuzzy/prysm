@@ -184,23 +184,19 @@ func (vs *Server) BuildBlockParallel(ctx context.Context, sBlk interfaces.Signed
 		vs.setBlsToExecData(sBlk, head)
 	}()
 
-	localPayload, overrideBuilder, err := vs.getLocalPayload(ctx, sBlk.Block(), head)
-	if err != nil {
-		return status.Errorf(codes.Internal, "Could not get local payload: %v", err)
-	}
+	//localPayload, overrideBuilder, err := vs.getLocalPayload(ctx, sBlk.Block(), head)
+	//if err != nil {
+	//	return status.Errorf(codes.Internal, "Could not get local payload: %v", err)
+	//}
 
 	// There's no reason to try to get a builder bid if local override is true.
-	var builderPayload interfaces.ExecutionData
-	overrideBuilder = overrideBuilder || skipMevBoost // Skip using mev-boost if requested by the caller.
-	if !overrideBuilder {
-		builderPayload, err = vs.getBuilderPayloadAndBlobs(ctx, sBlk.Block().Slot(), sBlk.Block().ProposerIndex())
-		if err != nil {
-			builderGetPayloadMissCount.Inc()
-			log.WithError(err).Error("Could not get builder payload")
-		}
+	builderPayload, err := vs.getBuilderPayloadAndBlobs(ctx, sBlk.Block().Slot(), sBlk.Block().ProposerIndex())
+	if err != nil {
+		builderGetPayloadMissCount.Inc()
+		log.WithError(err).Error("Could not get builder payload")
 	}
 
-	if err := setExecutionData(ctx, sBlk, localPayload, builderPayload); err != nil {
+	if err := setExecutionData(ctx, sBlk, nil, builderPayload); err != nil {
 		return status.Errorf(codes.Internal, "Could not set execution data: %v", err)
 	}
 
