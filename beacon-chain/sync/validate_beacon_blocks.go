@@ -203,20 +203,20 @@ func (s *Service) validateBeaconBlockPubSub(ctx context.Context, pid peer.ID, ms
 
 	// Log the arrival time of the accepted block
 	graffiti := blk.Block().Body().Graffiti()
+	validationTime := prysmTime.Now().Sub(receivedTime)
 	startTime, err := slots.ToTime(genesisTime, blk.Block().Slot())
 	logFields := logrus.Fields{
-		"blockSlot":     blk.Block().Slot(),
-		"proposerIndex": blk.Block().ProposerIndex(),
-		"graffiti":      string(graffiti[:]),
+		"blockSlot":      blk.Block().Slot(),
+		"proposerIndex":  blk.Block().ProposerIndex(),
+		"graffiti":       string(graffiti[:]),
+		"validationTime": validationTime,
 	}
 	if err != nil {
 		log.WithError(err).WithFields(logFields).Warn("Received block, could not report timing information.")
 		return pubsub.ValidationAccept, nil
 	}
 	sinceSlotStartTime := receivedTime.Sub(startTime)
-	validationTime := prysmTime.Now().Sub(receivedTime)
 	logFields["sinceSlotStartTime"] = sinceSlotStartTime
-	logFields["validationTime"] = validationTime
 	log.WithFields(logFields).Debug("Received block")
 
 	blockArrivalGossipSummary.Observe(float64(sinceSlotStartTime))
