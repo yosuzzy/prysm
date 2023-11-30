@@ -3,6 +3,7 @@ package sync
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
@@ -211,11 +212,12 @@ func (s *Service) validateBeaconBlockPubSub(ctx context.Context, pid peer.ID, ms
 
 	// Log the arrival time of the accepted block
 	graffiti := blk.Block().Body().Graffiti()
+	graffitiString := string(graffiti[:])
 	startTime, err := slots.ToTime(genesisTime, blk.Block().Slot())
 	logFields := logrus.Fields{
 		"blockSlot":     blk.Block().Slot(),
 		"proposerIndex": blk.Block().ProposerIndex(),
-		"graffiti":      string(graffiti[:]),
+		"graffiti":      strings.TrimSuffix(graffitiString, "\n"),
 	}
 	if err != nil {
 		log.WithError(err).WithFields(logFields).Warn("Received block, could not report timing information.")
