@@ -215,7 +215,7 @@ func (s *Service) validateBeaconBlockPubSub(ctx context.Context, pid peer.ID, ms
 	startTime, err := slots.ToTime(genesisTime, blk.Block().Slot())
 	logFields := logrus.Fields{
 		"blockSlot":     blk.Block().Slot(),
-		"graffiti":      strings.TrimSpace(string(graffiti[:])),
+		"graffiti":      strings.ReplaceAll(string(graffiti[:]), "\n", ""),
 		"proposerIndex": blk.Block().ProposerIndex(),
 	}
 	if err != nil {
