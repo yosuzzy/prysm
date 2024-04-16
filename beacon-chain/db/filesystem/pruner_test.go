@@ -43,10 +43,11 @@ func TestTryPruneDir_CachedExpired(t *testing.T) {
 		_, sidecars := util.GenerateTestDenebBlockWithSidecar(t, [32]byte{}, slot, 1)
 		sc, err := verification.BlobSidecarNoop(sidecars[0])
 		require.NoError(t, err)
-		root := fmt.Sprintf("%#x", sc.BlockRoot())
-		require.NoError(t, fs.Mkdir(root, directoryPermissions)) // make empty directory
-		require.NoError(t, pr.cache.ensure(root, sc.Slot(), 0))
-		pruned, err := pr.tryPruneDir(root, slot+1)
+		namer := namerForSidecar(sc)
+		dir := namer.dir()
+		require.NoError(t, fs.Mkdir(dir, directoryPermissions)) // make empty directory
+		require.NoError(t, pr.cache.ensure(dir, sc.Slot(), 0))
+		pruned, err := pr.tryPruneDir(dir, slot+1)
 		require.NoError(t, err)
 		require.Equal(t, 0, pruned)
 	})
@@ -61,20 +62,22 @@ func TestTryPruneDir_CachedExpired(t *testing.T) {
 		require.NoError(t, bs.Save(scs[1]))
 
 		// check that the root->slot is cached
+		namer := namerForSidecar(scs[0])
+		dir := namer.dir()
 		root := fmt.Sprintf("%#x", scs[0].BlockRoot())
 		cs, cok := bs.pruner.cache.slot(root)
 		require.Equal(t, true, cok)
 		require.Equal(t, slot, cs)
 
 		// ensure that we see the saved files in the filesystem
-		files, err := listDir(fs, root)
+		files, err := listDir(fs, dir)
 		require.NoError(t, err)
 		require.Equal(t, 2, len(files))
 
-		pruned, err := bs.pruner.tryPruneDir(root, slot+1)
+		pruned, err := bs.pruner.tryPruneDir(dir, slot+1)
 		require.NoError(t, err)
 		require.Equal(t, 2, pruned)
-		files, err = listDir(fs, root)
+		files, err = listDir(fs, dir)
 		require.ErrorIs(t, err, os.ErrNotExist)
 		require.Equal(t, 0, len(files))
 	})
@@ -93,6 +96,8 @@ func TestTryPruneDir_SlotFromFile(t *testing.T) {
 
 		// check that the root->slot is cached
 		root := fmt.Sprintf("%#x", scs[0].BlockRoot())
+		namer := namerForSidecar(scs[0])
+		dir := namer.dir()
 		cs, ok := bs.pruner.cache.slot(root)
 		require.Equal(t, true, ok)
 		require.Equal(t, slot, cs)
@@ -102,14 +107,14 @@ func TestTryPruneDir_SlotFromFile(t *testing.T) {
 		require.Equal(t, false, ok)
 
 		// ensure that we see the saved files in the filesystem
-		files, err := listDir(fs, root)
+		files, err := listDir(fs, dir)
 		require.NoError(t, err)
 		require.Equal(t, 2, len(files))
 
-		pruned, err := bs.pruner.tryPruneDir(root, slot+1)
+		pruned, err := bs.pruner.tryPruneDir(dir, slot+1)
 		require.NoError(t, err)
 		require.Equal(t, 2, pruned)
-		files, err = listDir(fs, root)
+		files, err = listDir(fs, dir)
 		require.ErrorIs(t, err, os.ErrNotExist)
 		require.Equal(t, 0, len(files))
 	})
@@ -126,23 +131,25 @@ func TestTryPruneDir_SlotFromFile(t *testing.T) {
 
 		// Evict slot mapping from the cache so that we trigger the file read path.
 		root := fmt.Sprintf("%#x", scs[0].BlockRoot())
+		namer := namerForSidecar(scs[0])
+		dir := namer.dir()
 		bs.pruner.cache.evict(root)
 		_, ok := bs.pruner.cache.slot(root)
 		require.Equal(t, false, ok)
 
 		// Ensure that we see the saved files in the filesystem.
-		files, err := listDir(fs, root)
+		files, err := listDir(fs, dir)
 		require.NoError(t, err)
 		require.Equal(t, 2, len(files))
 
 		// This should use the slotFromFile code (simulating restart).
 		// Setting pruneBefore == slot, so that the slot will be outside the window (at the boundary).
-		pruned, err := bs.pruner.tryPruneDir(root, slot)
+		pruned, err := bs.pruner.tryPruneDir(dir, slot)
 		require.NoError(t, err)
 		require.Equal(t, 0, pruned)
 
 		// Ensure files are still present.
-		files, err = listDir(fs, root)
+		files, err = listDir(fs, dir)
 		require.NoError(t, err)
 		require.Equal(t, 2, len(files))
 	})
