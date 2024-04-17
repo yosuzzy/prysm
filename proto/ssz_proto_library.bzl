@@ -26,6 +26,7 @@ mainnet = {
     "max_blobs_per_block.size": "6",
     "max_blob_commitments.size": "4096",
     "kzg_commitment_inclusion_proof_depth.size": "17",
+    "execution_layer_exits.size":"16"
 }
 
 minimal = {
@@ -48,6 +49,7 @@ minimal = {
     "max_blobs_per_block.size": "6",
     "max_blob_commitments.size": "16",
     "kzg_commitment_inclusion_proof_depth.size": "9",
+    "execution_layer_exits.size":"4"
 }
 
 ###### Rules definitions #######

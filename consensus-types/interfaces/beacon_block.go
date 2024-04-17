@@ -134,4 +134,5 @@ type ExecutionData interface {
 	PbDeneb() (*enginev1.ExecutionPayloadDeneb, error)
 	ValueInWei() (math.Wei, error)
 	ValueInGwei() (uint64, error)
+	ExecutionExits() ([]*enginev1.ExecutionLayerExit, error)
 }

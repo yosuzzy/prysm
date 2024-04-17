@@ -172,6 +172,16 @@ func (e executionPayload) ExcessBlobGas() (uint64, error) {
 	return 0, consensus_types.ErrUnsupportedField
 }
 
+// ExecutionExits --
+func (executionPayload) ExecutionExits() ([]*enginev1.ExecutionLayerExit, error) {
+	return nil, consensus_types.ErrUnsupportedField
+}
+
+// ExecutionExitsRoot --
+func (executionPayload) ExecutionExitsRoot() ([]byte, error) {
+	return nil, consensus_types.ErrUnsupportedField
+}
+
 // PbBellatrix --
 func (e executionPayload) PbBellatrix() (*enginev1.ExecutionPayload, error) {
 	return e.p, nil
@@ -351,6 +361,16 @@ func (e executionPayloadHeader) BlobGasUsed() (uint64, error) {
 // ExcessBlobGas --
 func (e executionPayloadHeader) ExcessBlobGas() (uint64, error) {
 	return 0, consensus_types.ErrUnsupportedField
+}
+
+// ExecutionExits --
+func (executionPayloadHeader) ExecutionExits() ([]*enginev1.ExecutionLayerExit, error) {
+	return nil, consensus_types.ErrUnsupportedField
+}
+
+// ExecutionExitsRoot --
+func (executionPayloadHeader) ExecutionExitsRoot() ([]byte, error) {
+	return nil, consensus_types.ErrUnsupportedField
 }
 
 // PbDeneb --
@@ -564,6 +584,16 @@ func (e executionPayloadCapella) ExcessBlobGas() (uint64, error) {
 	return 0, consensus_types.ErrUnsupportedField
 }
 
+// ExecutionExits --
+func (executionPayloadCapella) ExecutionExits() ([]*enginev1.ExecutionLayerExit, error) {
+	return nil, consensus_types.ErrUnsupportedField
+}
+
+// ExecutionExitsRoot --
+func (executionPayloadCapella) ExecutionExitsRoot() ([]byte, error) {
+	return nil, consensus_types.ErrUnsupportedField
+}
+
 // PbDeneb --
 func (executionPayloadCapella) PbDeneb() (*enginev1.ExecutionPayloadDeneb, error) {
 	return nil, consensus_types.ErrUnsupportedField
@@ -745,6 +775,16 @@ func (e executionPayloadHeaderCapella) BlobGasUsed() (uint64, error) {
 // ExcessBlobGas --
 func (e executionPayloadHeaderCapella) ExcessBlobGas() (uint64, error) {
 	return 0, consensus_types.ErrUnsupportedField
+}
+
+// ExecutionExits --
+func (executionPayloadHeaderCapella) ExecutionExits() ([]*enginev1.ExecutionLayerExit, error) {
+	return nil, consensus_types.ErrUnsupportedField
+}
+
+// ExecutionExitsRoot --
+func (executionPayloadHeaderCapella) ExecutionExitsRoot() ([]byte, error) {
+	return nil, consensus_types.ErrUnsupportedField
 }
 
 // PbDeneb --
@@ -1071,6 +1111,16 @@ func (e executionPayloadHeaderDeneb) ExcessBlobGas() (uint64, error) {
 	return e.p.ExcessBlobGas, nil
 }
 
+// ExecutionExits --
+func (executionPayloadHeaderDeneb) ExecutionExits() ([]*enginev1.ExecutionLayerExit, error) {
+	return nil, consensus_types.ErrUnsupportedField
+}
+
+// ExecutionExitsRoot --
+func (executionPayloadHeaderDeneb) ExecutionExitsRoot() ([]byte, error) {
+	return nil, consensus_types.ErrUnsupportedField
+}
+
 // PbDeneb --
 func (executionPayloadHeaderDeneb) PbDeneb() (*enginev1.ExecutionPayloadDeneb, error) {
 	return nil, consensus_types.ErrUnsupportedField
@@ -1250,6 +1300,16 @@ func (e executionPayloadDeneb) BlobGasUsed() (uint64, error) {
 
 func (e executionPayloadDeneb) ExcessBlobGas() (uint64, error) {
 	return e.p.ExcessBlobGas, nil
+}
+
+// ExecutionExits --
+func (executionPayloadDeneb) ExecutionExits() ([]*enginev1.ExecutionLayerExit, error) {
+	return nil, consensus_types.ErrUnsupportedField
+}
+
+// ExecutionExitsRoot --
+func (executionPayloadDeneb) ExecutionExitsRoot() ([]byte, error) {
+	return nil, consensus_types.ErrUnsupportedField
 }
 
 // PbBellatrix --

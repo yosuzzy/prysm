@@ -402,6 +402,10 @@ func altairOperations(
 	if err != nil {
 		return nil, errors.Wrap(err, "could not process voluntary exits")
 	}
+	st, err = b.ProcessExecutionLayerExits(ctx, st, beaconBlock)
+	if err != nil {
+		return nil, errors.Wrap(err, "could not process execution layer exits")
+	}
 	return b.ProcessBLSToExecutionChanges(st, beaconBlock)
 }
 
