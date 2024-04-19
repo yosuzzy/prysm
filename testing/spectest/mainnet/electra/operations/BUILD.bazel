@@ -1,0 +1,7 @@
+load("@prysm//tools/go:def.bzl", "go_test")
+
+go_test(
+    name = "go_default_test",
+    srcs = ["execution_layer_exits_test.go"],
+    deps = ["//testing/spectest/shared/electra/operations:go_default_library"],
+)

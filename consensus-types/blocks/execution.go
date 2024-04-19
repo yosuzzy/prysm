@@ -1342,6 +1342,197 @@ func (e executionPayloadDeneb) IsBlinded() bool {
 	return false
 }
 
+// executionPayloadElectra is a convenience wrapper around a beacon block body's execution payload data structure
+// This wrapper allows us to conform to a common interface so that beacon
+// blocks for future forks can also be applied across Prysm without issues.
+type executionPayloadElectra struct {
+	p         *enginev1.ExecutionPayloadElectra
+	weiValue  math.Wei
+	gweiValue uint64
+}
+
+// WrappedExecutionPayloadElectra is a constructor which wraps a protobuf execution payload into an interface.
+func WrappedExecutionPayloadElectra(p *enginev1.ExecutionPayloadElectra, value math.Wei) (interfaces.ExecutionData, error) {
+	w := executionPayloadElectra{p: p, weiValue: value, gweiValue: uint64(math.WeiToGwei(value))}
+	if w.IsNil() {
+		return nil, consensus_types.ErrNilObjectWrapped
+	}
+	return w, nil
+}
+
+// IsNil checks if the underlying data is nil.
+func (e executionPayloadElectra) IsNil() bool {
+	return e.p == nil
+}
+
+// MarshalSSZ --
+func (e executionPayloadElectra) MarshalSSZ() ([]byte, error) {
+	return e.p.MarshalSSZ()
+}
+
+// MarshalSSZTo --
+func (e executionPayloadElectra) MarshalSSZTo(dst []byte) ([]byte, error) {
+	return e.p.MarshalSSZTo(dst)
+}
+
+// SizeSSZ --
+func (e executionPayloadElectra) SizeSSZ() int {
+	return e.p.SizeSSZ()
+}
+
+// UnmarshalSSZ --
+func (e executionPayloadElectra) UnmarshalSSZ(buf []byte) error {
+	return e.p.UnmarshalSSZ(buf)
+}
+
+// HashTreeRoot --
+func (e executionPayloadElectra) HashTreeRoot() ([32]byte, error) {
+	return e.p.HashTreeRoot()
+}
+
+// HashTreeRootWith --
+func (e executionPayloadElectra) HashTreeRootWith(hh *fastssz.Hasher) error {
+	return e.p.HashTreeRootWith(hh)
+}
+
+// Proto --
+func (e executionPayloadElectra) Proto() proto.Message {
+	return e.p
+}
+
+// ParentHash --
+func (e executionPayloadElectra) ParentHash() []byte {
+	return e.p.ParentHash
+}
+
+// FeeRecipient --
+func (e executionPayloadElectra) FeeRecipient() []byte {
+	return e.p.FeeRecipient
+}
+
+// StateRoot --
+func (e executionPayloadElectra) StateRoot() []byte {
+	return e.p.StateRoot
+}
+
+// ReceiptsRoot --
+func (e executionPayloadElectra) ReceiptsRoot() []byte {
+	return e.p.ReceiptsRoot
+}
+
+// LogsBloom --
+func (e executionPayloadElectra) LogsBloom() []byte {
+	return e.p.LogsBloom
+}
+
+// PrevRandao --
+func (e executionPayloadElectra) PrevRandao() []byte {
+	return e.p.PrevRandao
+}
+
+// BlockNumber --
+func (e executionPayloadElectra) BlockNumber() uint64 {
+	return e.p.BlockNumber
+}
+
+// GasLimit --
+func (e executionPayloadElectra) GasLimit() uint64 {
+	return e.p.GasLimit
+}
+
+// GasUsed --
+func (e executionPayloadElectra) GasUsed() uint64 {
+	return e.p.GasUsed
+}
+
+// Timestamp --
+func (e executionPayloadElectra) Timestamp() uint64 {
+	return e.p.Timestamp
+}
+
+// ExtraData --
+func (e executionPayloadElectra) ExtraData() []byte {
+	return e.p.ExtraData
+}
+
+// BaseFeePerGas --
+func (e executionPayloadElectra) BaseFeePerGas() []byte {
+	return e.p.BaseFeePerGas
+}
+
+// BlockHash --
+func (e executionPayloadElectra) BlockHash() []byte {
+	return e.p.BlockHash
+}
+
+// Transactions --
+func (e executionPayloadElectra) Transactions() ([][]byte, error) {
+	return e.p.Transactions, nil
+}
+
+// TransactionsRoot --
+func (e executionPayloadElectra) TransactionsRoot() ([]byte, error) {
+	return nil, consensus_types.ErrUnsupportedField
+}
+
+// Withdrawals --
+func (e executionPayloadElectra) Withdrawals() ([]*enginev1.Withdrawal, error) {
+	return e.p.Withdrawals, nil
+}
+
+// WithdrawalsRoot --
+func (e executionPayloadElectra) WithdrawalsRoot() ([]byte, error) {
+	return nil, consensus_types.ErrUnsupportedField
+}
+
+func (e executionPayloadElectra) BlobGasUsed() (uint64, error) {
+	return e.p.BlobGasUsed, nil
+}
+
+func (e executionPayloadElectra) ExcessBlobGas() (uint64, error) {
+	return e.p.ExcessBlobGas, nil
+}
+
+// ExecutionExits --
+func (e executionPayloadElectra) ExecutionExits() ([]*enginev1.ExecutionLayerExit, error) {
+	return e.p.Exits, nil
+}
+
+// ExecutionExitsRoot --
+func (executionPayloadElectra) ExecutionExitsRoot() ([]byte, error) {
+	return nil, consensus_types.ErrUnsupportedField
+}
+
+// PbBellatrix --
+func (e executionPayloadElectra) PbBellatrix() (*enginev1.ExecutionPayload, error) {
+	return nil, consensus_types.ErrUnsupportedField
+}
+
+// PbCapella --
+func (e executionPayloadElectra) PbCapella() (*enginev1.ExecutionPayloadCapella, error) {
+	return nil, consensus_types.ErrUnsupportedField
+}
+
+// PbDeneb --
+func (e executionPayloadElectra) PbDeneb() (*enginev1.ExecutionPayloadDeneb, error) {
+	return nil, consensus_types.ErrUnsupportedField
+}
+
+// ValueInWei --
+func (e executionPayloadElectra) ValueInWei() (math.Wei, error) {
+	return e.weiValue, nil
+}
+
+// ValueInGwei --
+func (e executionPayloadElectra) ValueInGwei() (uint64, error) {
+	return e.gweiValue, nil
+}
+
+// IsBlinded returns true if the underlying data is blinded.
+func (e executionPayloadElectra) IsBlinded() bool {
+	return false
+}
+
 // PayloadValueToWei returns a Wei value given the payload's value
 func PayloadValueToWei(value []byte) math.Wei {
 	// We have to convert big endian to little endian because the value is coming from the execution layer.
