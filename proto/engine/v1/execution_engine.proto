@@ -106,8 +106,8 @@ message ExecutionPayloadElectra {
 	uint64 blob_gas_used  = 16;
 	uint64 excess_blob_gas  = 17;
 	repeated ExecutionLayerExit exits = 18 [(ethereum.eth.ext.ssz_max) = "execution_layer_exits.size"]; // new in electra, eip7002
+	repeated ExecutionLayerWithdrawalRequest	withdrawal_requests = 19 [(ethereum.eth.ext.ssz_max) = "max_withdrawal_requests_per_payload.size"]; // new in electra, eip7002, eip7251
 }
-
 
 message ExecutionPayloadCapellaWithValue {
 	ExecutionPayloadCapella payload = 1;
@@ -195,7 +195,8 @@ message ExecutionPayloadHeaderElectra {
 	bytes withdrawals_root  = 15 [(ethereum.eth.ext.ssz_size) = "32"];
 	uint64 blob_gas_used  = 16;
 	uint64 excess_blob_gas  = 17;
-	bytes exits_root  = 18 [(ethereum.eth.ext.ssz_size) = "32"]; // new in electra, eip7002
+	bytes exits_root = 18 [(ethereum.eth.ext.ssz_size) = "32"]; // new in electra, eip7002
+	bytes	withdrawal_requests_root = 19 [(ethereum.eth.ext.ssz_size) = "32"]; // new in electra, eip7002, eip7251
 }
 
 message PayloadAttributes {
@@ -254,15 +255,6 @@ message Withdrawal {
 	uint64 amount = 4;
 }
 
-// The message from the execution layer to trigger the withdrawal of a validator's balance to its withdrawal address
-message ExecutionLayerExit {
-	// The execution address receiving the funds
-	bytes source_address = 1 [(ethereum.eth.ext.ssz_size) = "20"];
-
-	// 48 byte BLS public key of the validator.
-	bytes validator_pubkey = 2 [(ethereum.eth.ext.ssz_size) = "48", (ethereum.eth.ext.spec_name) = "pubkey"];
-}
-
 // BlobsBundle is retrieved through engine-api from the execution layer client.
 // It consists of the necessary components for constructing a blobs sidecar object to gossip through p2p.
 message BlobsBundle {
@@ -274,6 +266,27 @@ message BlobsBundle {
 
 	// The blobs itself.
 	repeated bytes blobs = 3 [(ethereum.eth.ext.ssz_size) = "?,blob.size", (ethereum.eth.ext.ssz_max) = "max_blob_commitments.size"];
+}
+
+// The message from the execution layer to trigger the exit of a validator from the execution layer
+message ExecutionLayerExit {
+	// The execution address receiving the funds
+	bytes source_address = 1 [(ethereum.eth.ext.ssz_size) = "20"];
+
+	// 48 byte BLS public key of the validator.
+	bytes validator_pubkey = 2 [(ethereum.eth.ext.ssz_size) = "48", (ethereum.eth.ext.spec_name) = "pubkey"];
+}
+
+// The message from the execution layer to trigger the withdrawal of a validator's balance to its withdrawal address
+message ExecutionLayerWithdrawalRequest {
+	// The execution address receiving the funds
+	bytes source_address = 1 [(ethereum.eth.ext.ssz_size) = "20"];
+
+	// 48 byte BLS public key of the validator.
+	bytes validator_pubkey = 2 [(ethereum.eth.ext.ssz_size) = "48", (ethereum.eth.ext.spec_name) = "pubkey"];
+
+	// Deposit amount in gwei.
+	uint64 amount = 3;
 }
 
 // Blob contains the data that is to be committed on chain.

@@ -33,4 +33,5 @@ const (
 	BlobSize                              = 131072        // defined to match blob.size in bazel ssz codegen
 	KzgCommitmentInclusionProofDepth      = 17            // Merkle proof depth for blob_kzg_commitments list item
 	NextSyncCommitteeBranchDepth          = 5             // NextSyncCommitteeBranchDepth defines the depth of the next sync committee branch.
+	FullExitRequestAmount                 = 0             // FULL_EXIT_REQUEST_AMOUNT defines the full amount of gwei
 )

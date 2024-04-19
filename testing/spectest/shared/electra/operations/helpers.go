@@ -2,6 +2,7 @@ package operations
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path"
 	"strings"
@@ -38,6 +39,7 @@ func RunBlockOperationTest(
 	if err := preStateBase.UnmarshalSSZ(preBeaconStateSSZ); err != nil {
 		t.Fatalf("Failed to unmarshal: %v", err)
 	}
+	fmt.Printf("prestate %v\n", preStateBase)
 	preState, err := state_native.InitializeFromProtoElectra(preStateBase)
 	require.NoError(t, err)
 
@@ -68,6 +70,7 @@ func RunBlockOperationTest(
 		if err := postBeaconState.UnmarshalSSZ(postBeaconStateSSZ); err != nil {
 			t.Fatalf("Failed to unmarshal: %v", err)
 		}
+		fmt.Printf("poststate %v\n", postBeaconState)
 		pbState, err := state_native.ProtobufBeaconStateDeneb(beaconState.ToProtoUnsafe())
 		require.NoError(t, err)
 		if !proto.Equal(pbState, postBeaconState) {

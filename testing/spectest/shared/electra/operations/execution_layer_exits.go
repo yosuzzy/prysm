@@ -31,7 +31,6 @@ func RunExecutionLayerExitsTest(t *testing.T, config string) {
 			require.NoError(t, err, "Failed to decompress")
 			exit := &enginev1.ExecutionLayerExit{}
 			require.NoError(t, exit.UnmarshalSSZ(executionLayerExitSSZ), "Failed to unmarshal")
-
 			body := &ethpb.BeaconBlockBodyElectra{ExecutionPayload: &enginev1.ExecutionPayloadElectra{
 				Exits: []*enginev1.ExecutionLayerExit{
 					exit,
