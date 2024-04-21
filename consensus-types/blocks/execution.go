@@ -173,7 +173,7 @@ func (e executionPayload) ExcessBlobGas() (uint64, error) {
 }
 
 // ExecutionExits --
-func (executionPayload) ExecutionExits() ([]*enginev1.ExecutionLayerExit, error) {
+func (executionPayload) WithdrawalRequests() ([]*enginev1.ExecutionLayerWithdrawalRequest, error) {
 	return nil, consensus_types.ErrUnsupportedField
 }
 
@@ -364,7 +364,7 @@ func (e executionPayloadHeader) ExcessBlobGas() (uint64, error) {
 }
 
 // ExecutionExits --
-func (executionPayloadHeader) ExecutionExits() ([]*enginev1.ExecutionLayerExit, error) {
+func (executionPayloadHeader) WithdrawalRequests() ([]*enginev1.ExecutionLayerWithdrawalRequest, error) {
 	return nil, consensus_types.ErrUnsupportedField
 }
 
@@ -585,7 +585,7 @@ func (e executionPayloadCapella) ExcessBlobGas() (uint64, error) {
 }
 
 // ExecutionExits --
-func (executionPayloadCapella) ExecutionExits() ([]*enginev1.ExecutionLayerExit, error) {
+func (executionPayloadCapella) WithdrawalRequests() ([]*enginev1.ExecutionLayerWithdrawalRequest, error) {
 	return nil, consensus_types.ErrUnsupportedField
 }
 
@@ -778,7 +778,7 @@ func (e executionPayloadHeaderCapella) ExcessBlobGas() (uint64, error) {
 }
 
 // ExecutionExits --
-func (executionPayloadHeaderCapella) ExecutionExits() ([]*enginev1.ExecutionLayerExit, error) {
+func (executionPayloadHeaderCapella) WithdrawalRequests() ([]*enginev1.ExecutionLayerWithdrawalRequest, error) {
 	return nil, consensus_types.ErrUnsupportedField
 }
 
@@ -1112,7 +1112,7 @@ func (e executionPayloadHeaderDeneb) ExcessBlobGas() (uint64, error) {
 }
 
 // ExecutionExits --
-func (executionPayloadHeaderDeneb) ExecutionExits() ([]*enginev1.ExecutionLayerExit, error) {
+func (executionPayloadHeaderDeneb) WithdrawalRequests() ([]*enginev1.ExecutionLayerWithdrawalRequest, error) {
 	return nil, consensus_types.ErrUnsupportedField
 }
 
@@ -1303,7 +1303,7 @@ func (e executionPayloadDeneb) ExcessBlobGas() (uint64, error) {
 }
 
 // ExecutionExits --
-func (executionPayloadDeneb) ExecutionExits() ([]*enginev1.ExecutionLayerExit, error) {
+func (executionPayloadDeneb) WithdrawalRequests() ([]*enginev1.ExecutionLayerWithdrawalRequest, error) {
 	return nil, consensus_types.ErrUnsupportedField
 }
 
@@ -1494,8 +1494,8 @@ func (e executionPayloadElectra) ExcessBlobGas() (uint64, error) {
 }
 
 // ExecutionExits --
-func (e executionPayloadElectra) ExecutionExits() ([]*enginev1.ExecutionLayerExit, error) {
-	return e.p.Exits, nil
+func (e executionPayloadElectra) WithdrawalRequests() ([]*enginev1.ExecutionLayerWithdrawalRequest, error) {
+	return e.p.WithdrawalRequests, nil
 }
 
 // ExecutionExitsRoot --
@@ -1698,13 +1698,13 @@ func (e executionPayloadHeaderElectra) ExcessBlobGas() (uint64, error) {
 }
 
 // ExecutionExits --
-func (executionPayloadHeaderElectra) ExecutionExits() ([]*enginev1.ExecutionLayerExit, error) {
+func (executionPayloadHeaderElectra) WithdrawalRequests() ([]*enginev1.ExecutionLayerWithdrawalRequest, error) {
 	return nil, consensus_types.ErrUnsupportedField
 }
 
 // ExecutionExitsRoot --
-func (e executionPayloadHeaderElectra) ExecutionExitsRoot() ([]byte, error) {
-	return e.p.ExitsRoot, nil
+func (e executionPayloadHeaderElectra) WithdrawalRequestsRoot() ([]byte, error) {
+	return e.p.WithdrawalRequestsRoot, nil
 }
 
 // PbBellatrix --

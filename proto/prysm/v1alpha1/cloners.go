@@ -828,24 +828,24 @@ func CopyExecutionPayloadHeaderElectra(payload *enginev1.ExecutionPayloadHeaderE
 		return nil
 	}
 	return &enginev1.ExecutionPayloadHeaderElectra{
-		ParentHash:       bytesutil.SafeCopyBytes(payload.ParentHash),
-		FeeRecipient:     bytesutil.SafeCopyBytes(payload.FeeRecipient),
-		StateRoot:        bytesutil.SafeCopyBytes(payload.StateRoot),
-		ReceiptsRoot:     bytesutil.SafeCopyBytes(payload.ReceiptsRoot),
-		LogsBloom:        bytesutil.SafeCopyBytes(payload.LogsBloom),
-		PrevRandao:       bytesutil.SafeCopyBytes(payload.PrevRandao),
-		BlockNumber:      payload.BlockNumber,
-		GasLimit:         payload.GasLimit,
-		GasUsed:          payload.GasUsed,
-		Timestamp:        payload.Timestamp,
-		ExtraData:        bytesutil.SafeCopyBytes(payload.ExtraData),
-		BaseFeePerGas:    bytesutil.SafeCopyBytes(payload.BaseFeePerGas),
-		BlockHash:        bytesutil.SafeCopyBytes(payload.BlockHash),
-		TransactionsRoot: bytesutil.SafeCopyBytes(payload.TransactionsRoot),
-		WithdrawalsRoot:  bytesutil.SafeCopyBytes(payload.WithdrawalsRoot),
-		BlobGasUsed:      payload.BlobGasUsed,
-		ExcessBlobGas:    payload.ExcessBlobGas,
-		ExitsRoot:        bytesutil.SafeCopyBytes(payload.ExitsRoot), // new in electra
+		ParentHash:             bytesutil.SafeCopyBytes(payload.ParentHash),
+		FeeRecipient:           bytesutil.SafeCopyBytes(payload.FeeRecipient),
+		StateRoot:              bytesutil.SafeCopyBytes(payload.StateRoot),
+		ReceiptsRoot:           bytesutil.SafeCopyBytes(payload.ReceiptsRoot),
+		LogsBloom:              bytesutil.SafeCopyBytes(payload.LogsBloom),
+		PrevRandao:             bytesutil.SafeCopyBytes(payload.PrevRandao),
+		BlockNumber:            payload.BlockNumber,
+		GasLimit:               payload.GasLimit,
+		GasUsed:                payload.GasUsed,
+		Timestamp:              payload.Timestamp,
+		ExtraData:              bytesutil.SafeCopyBytes(payload.ExtraData),
+		BaseFeePerGas:          bytesutil.SafeCopyBytes(payload.BaseFeePerGas),
+		BlockHash:              bytesutil.SafeCopyBytes(payload.BlockHash),
+		TransactionsRoot:       bytesutil.SafeCopyBytes(payload.TransactionsRoot),
+		WithdrawalsRoot:        bytesutil.SafeCopyBytes(payload.WithdrawalsRoot),
+		BlobGasUsed:            payload.BlobGasUsed,
+		ExcessBlobGas:          payload.ExcessBlobGas,
+		WithdrawalRequestsRoot: bytesutil.SafeCopyBytes(payload.WithdrawalRequestsRoot), // new in electra
 	}
 }
 

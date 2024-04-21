@@ -29,15 +29,15 @@ func RunExecutionLayerExitsTest(t *testing.T, config string) {
 			require.NoError(t, err)
 			executionLayerExitSSZ, err := snappy.Decode(nil /* dst */, executionLayerExitFile)
 			require.NoError(t, err, "Failed to decompress")
-			exit := &enginev1.ExecutionLayerExit{}
-			require.NoError(t, exit.UnmarshalSSZ(executionLayerExitSSZ), "Failed to unmarshal")
+			withdrawalRequest := &enginev1.ExecutionLayerWithdrawalRequest{}
+			require.NoError(t, withdrawalRequest.UnmarshalSSZ(executionLayerExitSSZ), "Failed to unmarshal")
 			body := &ethpb.BeaconBlockBodyElectra{ExecutionPayload: &enginev1.ExecutionPayloadElectra{
-				Exits: []*enginev1.ExecutionLayerExit{
-					exit,
+				WithdrawalRequests: []*enginev1.ExecutionLayerWithdrawalRequest{
+					withdrawalRequest,
 				},
 			}}
 			RunBlockOperationTest(t, folderPath, body, func(ctx context.Context, s state.BeaconState, b interfaces.SignedBeaconBlock) (state.BeaconState, error) {
-				return blocks.ProcessExecutionLayerExits(ctx, s, b.Block())
+				return blocks.ProcessExecutionLayerWithdrawalRequest(ctx, s, b.Block())
 			})
 		})
 	}

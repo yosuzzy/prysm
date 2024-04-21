@@ -4,7 +4,7 @@ go_library(
     name = "go_default_library",
     testonly = True,
     srcs = [
-        "execution_layer_exits.go",
+        "execution_layer_withdrawal_request.go",
         "helpers.go",
     ],
     importpath = "github.com/prysmaticlabs/prysm/v5/testing/spectest/shared/electra/operations",
