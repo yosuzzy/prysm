@@ -27,6 +27,7 @@ func MinimalSpecConfig() *BeaconChainConfig {
 	minimalConfig.MaxEffectiveBalance = 32e9
 	minimalConfig.EjectionBalance = 16e9
 	minimalConfig.EffectiveBalanceIncrement = 1e9
+	minimalConfig.MinActivationBalance = 32e9 // new in electra Gwei(2**5 * 10**9)
 
 	// Initial values
 	minimalConfig.BLSWithdrawalPrefixByte = byte(0)

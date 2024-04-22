@@ -402,10 +402,6 @@ func altairOperations(
 	if err != nil {
 		return nil, errors.Wrap(err, "could not process voluntary exits")
 	}
-	st, err = b.ProcessExecutionLayerExits(ctx, st, beaconBlock) // New in electra
-	if err != nil {
-		return nil, errors.Wrap(err, "could not process execution layer exits")
-	}
 	st, err = b.ProcessBLSToExecutionChanges(st, beaconBlock)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not process bls to execution changes")

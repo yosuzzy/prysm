@@ -84,6 +84,7 @@ var mainnetBeaconConfig = &BeaconChainConfig{
 	MaxEffectiveBalance:       32 * 1e9,
 	EjectionBalance:           16 * 1e9,
 	EffectiveBalanceIncrement: 1 * 1e9,
+	MinActivationBalance:      32 * 1e9, // new in electra Gwei(2**5 * 10**9)
 
 	// Initial value constants.
 	BLSWithdrawalPrefixByte:         byte(0),

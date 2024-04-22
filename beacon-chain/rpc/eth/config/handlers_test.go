@@ -131,6 +131,7 @@ func TestGetSpec(t *testing.T) {
 	config.MaxWithdrawalsPerPayload = 74
 	config.MaxBlsToExecutionChanges = 75
 	config.MaxValidatorsPerWithdrawalsSweep = 76
+	config.MinActivationBalance = 77 // new in electra
 
 	var dbp [4]byte
 	copy(dbp[:], []byte{'0', '0', '0', '1'})

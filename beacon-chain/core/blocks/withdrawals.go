@@ -336,14 +336,107 @@ func ProcessExecutionLayerWithdrawalRequest(ctx context.Context,
 	if beaconState.Version() < version.Electra || beaconBlock.Version() < version.Electra {
 		return beaconState, nil
 	}
-	//payload, err := beaconBlock.Body().Execution()
-	//if err != nil {
-	//	return nil, errors.Wrap(err, "could get execution payload from beacon block")
-	//}
+	payload, err := beaconBlock.Body().Execution()
+	if err != nil {
+		return nil, errors.Wrap(err, "could get execution payload from beacon block")
+	}
+	withdrawlRequests, err := payload.WithdrawalRequests()
+	if err != nil {
+		return nil, errors.Wrap(err, "could get execution layer withdrawal requests from payload")
+	}
 
-	// TODO: WIP
+	// Avoid calculating the epoch churn if no exits exist.
+	if len(withdrawlRequests) == 0 {
+		return beaconState, nil
+	}
 
-	return nil, nil
+	for idx, withdrawalRequest := range withdrawlRequests {
+		if withdrawalRequest == nil {
+			return nil, errors.New("nil execution layer withdrawal request in payload")
+		}
+		isFullExitRequest := func() bool {
+			return withdrawalRequest.Amount == fieldparams.FullExitRequestAmount
+		}()
+		//# If partial withdrawal queue is full, only full exits are processed
+		//if len(state.pending_partial_withdrawals) == PENDING_PARTIAL_WITHDRAWALS_LIMIT and not is_full_exit_request:
+		//return
+
+		index, ok := beaconState.ValidatorIndexByPubkey(bytesutil.ToBytes48(withdrawalRequest.ValidatorPubkey))
+		if !ok {
+			return nil, errors.Errorf("could not find validator index for execution layer withdrawal request %d", idx)
+		}
+		validator, err := beaconState.ValidatorAtIndexReadOnly(index)
+		if err != nil {
+			return nil, err
+		}
+		withdrawalCredentials := validator.WithdrawalCredentials()
+
+		// # Verify withdrawal credentials
+		//    has_correct_credential = has_execution_withdrawal_credential(validator)
+		//    is_correct_source_address = (
+		//        validator.withdrawal_credentials[12:] == execution_layer_withdrawal_request.source_address
+		//    )
+		//if not (has_correct_credential and is_correct_source_address):
+		//return
+
+		currentSlot := beaconState.Slot()
+		currentEpoch := slots.ToEpoch(currentSlot)
+
+		// Verify the validator is active.
+		if !helpers.IsActiveValidatorUsingTrie(validator, currentEpoch) {
+			return nil, errors.New("non-active validator cannot exit")
+		}
+		// Verify the validator has not yet submitted an exit.
+		if validator.ExitEpoch() != params.BeaconConfig().FarFutureEpoch {
+			return nil, fmt.Errorf("validator with index %d %s: %v", index, ValidatorAlreadyExitedMsg, validator.ExitEpoch())
+		}
+		// Verify the validator has been active long enough.
+		if currentEpoch < validator.ActivationEpoch()+params.BeaconConfig().ShardCommitteePeriod {
+			return nil, fmt.Errorf(
+				"%s: %d of %d epochs. Validator will be eligible for exit at epoch %d",
+				ValidatorCannotExitYetMsg,
+				currentEpoch-validator.ActivationEpoch(),
+				params.BeaconConfig().ShardCommitteePeriod,
+				validator.ActivationEpoch()+params.BeaconConfig().ShardCommitteePeriod,
+			)
+		}
+
+		pendingBalanceToWithdraw := 0 //get_pending_balance_to_withdraw(state, index)
+
+		if isFullExitRequest {
+			//# Only exit validator if it has no pending withdrawals in the queue
+			//if pending_balance_to_withdraw == 0:
+			//if pending_balance_to_withdraw == 0:
+			//initiate_validator_exit(state, index)
+			//return
+		}
+		hasSufficientEffectiveBalance := func() bool {
+			return validator.EffectiveBalance() >= params.BeaconConfig().MinActivationBalance
+		}()
+		balanceAtIndex, err := beaconState.BalanceAtIndex(index)
+		if err != nil {
+			return nil, errors.Wrap(err, fmt.Sprintf("could not get balance at index %d", index))
+		}
+		hasExcessBalance := func() bool {
+			return balanceAtIndex > params.BeaconConfig().MinActivationBalance+pendingBalanceToWithdraw // safe addition to not overflow
+		}()
+
+		//# Only allow partial withdrawals with compounding withdrawal credentials
+		//if has_compounding_withdrawal_credential(validator) and has_sufficient_effective_balance and has_excess_balance:
+		//to_withdraw = min(
+		//	state.balances[index] - MIN_ACTIVATION_BALANCE - pending_balance_to_withdraw,
+		//	amount
+		//)
+		//exit_queue_epoch = compute_exit_epoch_and_update_churn(state, to_withdraw)
+		//withdrawable_epoch = Epoch(exit_queue_epoch + MIN_VALIDATOR_WITHDRAWABILITY_DELAY)
+		//state.pending_partial_withdrawals.append(PendingPartialWithdrawal(
+		//	index=index,
+		//	amount=to_withdraw,
+		//	withdrawable_epoch=withdrawable_epoch,
+		//))
+	}
+
+	return beaconState, nil
 }
 
 // ProcessExecutionLayerExits is one of the operations performed

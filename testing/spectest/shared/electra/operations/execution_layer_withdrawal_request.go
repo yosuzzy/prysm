@@ -16,7 +16,7 @@ import (
 	"github.com/prysmaticlabs/prysm/v5/testing/util"
 )
 
-func RunExecutionLayerExitsTest(t *testing.T, config string) {
+func RunExecutionLayerWithdrawalRequestTest(t *testing.T, config string) {
 	require.NoError(t, utils.SetConfig(t, config))
 	testFolders, testsFolderPath := utils.TestFolders(t, config, "electra", "operations/execution_layer_exit/pyspec_tests")
 	if len(testFolders) == 0 {
